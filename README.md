@@ -1,6 +1,6 @@
 # Hangout
 
-Simple Doodle-style scheduling polls for shared PHP hosting (built for hoststar.ch). PHP backend, plain JavaScript frontend, no database, no dependencies.
+Simple scheduling polls for shared PHP hosting. PHP backend, plain JavaScript frontend, no database, no dependencies.
 
 ## Features
 - **Admin page** (password protected): create, edit, close and delete polls; delete individual responses.
@@ -18,13 +18,13 @@ PHP >= 7.4 (8.x recommended) with the `mbstring` extension, and a web server tha
 3. On your own computer run `php hash-password.php`, type the admin password when prompted, and copy the printed hash.
 4. Copy `config.sample.php` to `config.php` and paste the hash into `admin_password_hash`, **in single quotes** (the hash contains `$`). Only the hash is stored on the server, never the password. `hash-password.php` does not need to be uploaded.
 5. Make sure `data/` is writable by PHP (755 usually works; try 775 if saving fails).
-6. Open `https://your-domain/index.php/admin`. Poll links look like `https://your-domain/index.php/p/<id>`; the admin page has a copy-link button for each poll.
+6. Open `https://your-domain/admin`. Poll links look like `https://your-domain/p/<id>`; the admin page has a copy-link button for each poll. If `/admin` gives the server's own 404, the root `.htaccess` is missing or inactive (see Troubleshooting); `https://your-domain/index.php/admin` works regardless and produces `/index.php/p/<id>` links.
 
 ## Configuration (`config.php`)
 | Key | Meaning |
 |---|---|
 | `admin_password_hash` | Required. Create it with `php hash-password.php`. |
-| `base` | URL prefix, default `'/index.php'`, which works on any server (nginx, no rewrites). Set `''` for the short URLs `/admin` and `/p/<id>` if the server applies the rewrite rules in `.htaccess` (Apache hosts that honour it). |
+| `base` | Optional URL prefix, normally left unset: links follow how the page was opened (`/admin` gives `/p/<id>`, `/index.php/admin` gives `/index.php/p/<id>`). Force a style with `''` or `'/index.php'`. |
 | `data_dir` | Optional. Where polls, sessions and login attempts are stored (must be writable). Best placed outside the web root. |
 
 ## Security notes
@@ -32,7 +32,7 @@ PHP >= 7.4 (8.x recommended) with the `mbstring` extension, and a web server tha
 - Admin sessions are random tokens. Only their SHA-256 is stored, in `data/sessions.json`, so neither the config nor the data files contain anything that can log someone in or forge a cookie. To log everyone out, delete that file.
 - Cookies are `HttpOnly` and `SameSite=Strict`, and `Secure` over HTTPS. Use HTTPS, or the password and session cookie travel unencrypted.
 - Page content is built with `textContent`, API requests must be JSON, and a strict Content-Security-Policy is sent.
-- `.htaccess` blocks `data/` and `config.php` on Apache only. nginx ignores it, so check that `https://your-domain/data/polls.json` does **not** show content, and prefer `data_dir` outside the web root.
+- `.htaccess` blocks `data/`, `views/` and `config.php` when it is active, so check that `https://your-domain/data/polls.json` does **not** show content, and prefer `data_dir` outside the web root.
 - Poll links are unguessable but not secret from anyone you share them with, and any visitor can change anyone's response. Close a poll to freeze it.
 
 ## Files
@@ -47,6 +47,9 @@ PHP >= 7.4 (8.x recommended) with the `mbstring` extension, and a web server tha
 
 ## Troubleshooting
 - **Blank page or 500:** check the host's PHP error log and the PHP version. A message about `admin_password_hash` means `config.php` is missing or the hash isn't a valid Argon2id/bcrypt hash (check the single quotes).
-- **`/admin` or `/p/...` gives the server's own 404:** rewrites aren't active (nginx, or `.htaccess` not honoured). Keep `'base' => '/index.php'` and use `/index.php/admin`.
+- **`/admin` or `/p/...` gives the server's own 404:** the root `.htaccess` isn't active. Check that the hidden file was uploaded next to `index.php` (many FTP clients hide dotfiles), and that the host allows `.htaccess` rewrites. Meanwhile `/index.php/admin` always works. Test: `https://your-domain/config.php` should return 403 when `.htaccess` is active.
 - **Saving a poll or logging in gives 500:** `data/` is not writable.
 - **Changes don't show up:** hard-refresh; browsers cache `style.css` and `common.js`.
+
+## License
+MIT, see [LICENSE](LICENSE).

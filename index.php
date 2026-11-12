@@ -6,8 +6,9 @@ $cfgFile = is_file(__DIR__ . '/config.php') ? __DIR__ . '/config.php' : null;
 if (!$cfgFile) { http_response_code(500); exit('Copy config.sample.php to config.php and set the password.'); }
 $cfg = require $cfgFile;
 $ADMIN_HASH = (string)($cfg['admin_password_hash'] ?? '');
-// URL prefix for the admin page, poll links and API. '/index.php' works on servers without rewrite support.
-$BASE = rtrim((string)($cfg['base'] ?? '/index.php'), '/');
+// Optional fixed URL prefix ('' or '/index.php'). Without it the prefix follows how the page was opened:
+// /admin (rewrites work) gives short links, /index.php/admin gives /index.php/... links.
+$BASE_CFG = array_key_exists('base', $cfg) ? rtrim((string)$cfg['base'], '/') : null;
 $DATA_DIR = rtrim((string)($cfg['data_dir'] ?? (__DIR__ . '/data')), '/');
 if (!preg_match('/^\$(2y|argon2id?)\$/', $ADMIN_HASH)) {
     http_response_code(500);
@@ -264,7 +265,9 @@ function page(string $file): void {
 
 // ---------- dispatch ----------
 $path = rtrim(parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/', '/') ?: '/';
+$viaScript = (bool)preg_match('#^/index\.php(?=/|$)#', $path);
 $path = preg_replace('#^/index\.php(?=/|$)#', '', $path) ?: '/'; // /index.php/admin routes like /admin
+$BASE = $BASE_CFG ?? ($viaScript ? '/index.php' : '');
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $isApi = strpos($path, '/api/') === 0;
 try {
