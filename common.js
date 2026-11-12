@@ -1,5 +1,5 @@
 'use strict';
-// shared helpers for admin.html and poll.html
+// shared helpers for admin.html and hangout.html
 const BASE = window.BASE || ''; // '/index.php' when the server has no rewrite rules
 
 async function api(method, url, body) {
@@ -45,4 +45,4 @@ const COLORS = ['red', 'orange', 'yellow', 'lime', 'green', 'teal', 'cyan', 'blu
 const hlClass = (o) => (COLORS.includes(o.color) ? 'hl hl-' + o.color : '');
 
 const SYMBOL = { ok: '✓', maybe: '(✓)', no: '✗' };
-const pollUrl = (id) => location.origin + BASE + '/p/' + id;
+const hangoutUrl = (id) => location.origin + BASE + '/p/' + id;

@@ -75,7 +75,7 @@ function locked(string $file, callable $fn) {
         flock($f, LOCK_UN); fclose($f);
     }
 }
-function withPolls(callable $fn) { global $DATA_DIR; return locked($DATA_DIR . '/polls.json', $fn); }
+function withHangouts(callable $fn) { global $DATA_DIR; return locked($DATA_DIR . '/hangouts.json', $fn); }
 
 // ---------- auth ----------
 // Sessions are random tokens; only their SHA-256 is stored server-side, so neither the config
@@ -125,7 +125,7 @@ function loginThrottle(string $ip, bool $recordFail): bool {
     });
 }
 
-// ---------- poll helpers ----------
+// ---------- hangout helpers ----------
 function cleanOptions($input, array $existing = []): array {
     if (!is_array($input) || count($input) < 1 || count($input) > 60) throw new HttpError(400, 'Need 1-60 options');
     $known = array_column($existing, 'id');
@@ -141,7 +141,7 @@ function cleanOptions($input, array $existing = []): array {
     }
     return $out;
 }
-function publicPoll(array $p): array {
+function publicHangout(array $p): array {
     return [
         'id' => $p['id'], 'title' => $p['title'], 'description' => $p['description'],
         'options' => array_values($p['options']), 'closed' => !empty($p['closed']), 'logo' => logoUrl($p['id']),
@@ -150,22 +150,22 @@ function publicPoll(array $p): array {
 }
 
 // ---------- API ----------
-// ---------- poll logos (one optional image per poll, data/logos/<pollId>.dat) ----------
+// ---------- hangout logos (one optional image per hangout, data/logos/<hangoutId>.dat) ----------
 const LOGO_TYPES = [IMAGETYPE_PNG, IMAGETYPE_JPEG, IMAGETYPE_WEBP];
 const LOGO_MAX_BYTES = 800 * 1024;
 const LOGO_SVG_MAX_BYTES = 200 * 1024;
-function logoFile(string $pollId): string {
+function logoFile(string $hangoutId): string {
     global $DATA_DIR;
-    if (!preg_match('/^[A-Za-z0-9_-]+$/', $pollId)) throw new HttpError(404, 'No such poll');
-    return $DATA_DIR . '/logos/' . $pollId . '.dat';
+    if (!preg_match('/^[A-Za-z0-9_-]+$/', $hangoutId)) throw new HttpError(404, 'No such hangout');
+    return $DATA_DIR . '/logos/' . $hangoutId . '.dat';
 }
-function logoUrl(string $pollId): string { // '' when the poll has no logo; ?v= busts the browser cache after a change
+function logoUrl(string $hangoutId): string { // '' when the hangout has no logo; ?v= busts the browser cache after a change
     global $BASE;
-    $f = logoFile($pollId);
-    return is_file($f) ? $BASE . '/api/polls/' . $pollId . '/logo?v=' . filemtime($f) : '';
+    $f = logoFile($hangoutId);
+    return is_file($f) ? $BASE . '/api/hangouts/' . $hangoutId . '/logo?v=' . filemtime($f) : '';
 }
-function sendLogo(string $pollId): void {
-    $f = logoFile($pollId);
+function sendLogo(string $hangoutId): void {
+    $f = logoFile($hangoutId);
     $raw = is_file($f) ? file_get_contents($f) : false;
     if ($raw === false || $raw === '') throw new HttpError(404, 'No logo');
     if ($raw[0] === '<') { // sanitized SVG (raster files never start with '<')
@@ -220,7 +220,7 @@ function sanitizeSvg(string $svg): string {
     return $doc->saveXML($root);
 }
 
-function saveLogo(string $pollId, string $dataUrl): void {
+function saveLogo(string $hangoutId, string $dataUrl): void {
     if (!preg_match('#^data:image/(png|jpeg|webp|svg\+xml);base64,([A-Za-z0-9+/=\s]+)$#', $dataUrl, $m)) throw new HttpError(400, 'Use a PNG, JPEG, WebP or SVG image');
     $raw = base64_decode($m[2], true);
     if ($raw === false) throw new HttpError(400, 'Bad image data');
@@ -232,7 +232,7 @@ function saveLogo(string $pollId, string $dataUrl): void {
         if (!$info || !in_array($info[2], LOGO_TYPES, true)) throw new HttpError(400, 'Not a valid PNG, JPEG, WebP or SVG image');
         if ($info[0] > 2000 || $info[1] > 2000) throw new HttpError(400, 'Image dimensions too large');
     }
-    $f = logoFile($pollId);
+    $f = logoFile($hangoutId);
     if (!is_dir(dirname($f))) mkdir(dirname($f), 0755, true);
     $tmp = $f . '.tmp';
     if (file_put_contents($tmp, $raw, LOCK_EX) === false || !rename($tmp, $f)) throw new RuntimeException('Cannot save logo');
@@ -257,10 +257,10 @@ function api(array $parts, string $method): void {
 
     if ($a === 'admin') {
         if (!isAdmin()) throw new HttpError(401, 'Login required');
-        if ($b !== 'polls') throw new HttpError(404, 'Not found');
+        if ($b !== 'hangouts') throw new HttpError(404, 'Not found');
 
         if ($c !== null && $d === 'logo' && ($method === 'PUT' || $method === 'DELETE')) {
-            if (!withPolls(fn(array &$polls) => isset($polls[$c]))) throw new HttpError(404, 'No such poll');
+            if (!withHangouts(fn(array &$hangouts) => isset($hangouts[$c]))) throw new HttpError(404, 'No such hangout');
             if ($method === 'PUT') {
                 $body = readJson(1200 * 1024);
                 saveLogo($c, is_string($body['image'] ?? null) ? $body['image'] : '');
@@ -271,9 +271,9 @@ function api(array $parts, string $method): void {
         }
 
         if ($c === null && $method === 'GET') {
-            $list = withPolls(fn(array &$polls) => array_values($polls));
+            $list = withHangouts(fn(array &$hangouts) => array_values($hangouts));
             usort($list, fn($x, $y) => $y['created'] <=> $x['created']);
-            sendJson(200, array_map('publicPoll', $list));
+            sendJson(200, array_map('publicHangout', $list));
         }
         if ($c === null && $method === 'POST') {
             $body = readJson();
@@ -283,16 +283,16 @@ function api(array $parts, string $method): void {
                 'id' => rid(9), 'title' => $title, 'description' => str($body['description'] ?? '', 1000),
                 'options' => cleanOptions($body['options'] ?? null), 'votes' => [], 'closed' => false, 'created' => time(),
             ];
-            withPolls(function (array &$polls) use ($p) { $polls[$p['id']] = $p; });
-            sendJson(201, publicPoll($p));
+            withHangouts(function (array &$hangouts) use ($p) { $hangouts[$p['id']] = $p; });
+            sendJson(201, publicHangout($p));
         }
         if ($c !== null && $d === null && $method === 'PUT') {
             $body = readJson();
             $title = str($body['title'] ?? '', 120);
             if ($title === '') throw new HttpError(400, 'Title required');
-            $p = withPolls(function (array &$polls) use ($c, $body, $title) {
-                if (!isset($polls[$c])) throw new HttpError(404, 'No such poll');
-                $p = &$polls[$c];
+            $p = withHangouts(function (array &$hangouts) use ($c, $body, $title) {
+                if (!isset($hangouts[$c])) throw new HttpError(404, 'No such hangout');
+                $p = &$hangouts[$c];
                 $p['title'] = $title;
                 $p['description'] = str($body['description'] ?? '', 1000);
                 $p['options'] = cleanOptions($body['options'] ?? null, $p['options']);
@@ -303,42 +303,42 @@ function api(array $parts, string $method): void {
                 }
                 return $p;
             });
-            sendJson(200, publicPoll($p));
+            sendJson(200, publicHangout($p));
         }
         if ($c !== null && $d === null && $method === 'DELETE') {
-            $found = withPolls(function (array &$polls) use ($c) { $f = isset($polls[$c]); unset($polls[$c]); return $f; });
-            if (!$found) throw new HttpError(404, 'No such poll');
+            $found = withHangouts(function (array &$hangouts) use ($c) { $f = isset($hangouts[$c]); unset($hangouts[$c]); return $f; });
+            if (!$found) throw new HttpError(404, 'No such hangout');
             if (is_file(logoFile($c))) unlink(logoFile($c));
             sendJson(200, ['ok' => true]);
         }
         if ($c !== null && $d === 'votes' && isset($parts[4]) && $method === 'DELETE') {
             $vid = $parts[4];
-            $p = withPolls(function (array &$polls) use ($c, $vid) {
-                if (!isset($polls[$c])) throw new HttpError(404, 'No such poll');
-                $polls[$c]['votes'] = array_values(array_filter($polls[$c]['votes'], fn($v) => $v['id'] !== $vid));
-                return $polls[$c];
+            $p = withHangouts(function (array &$hangouts) use ($c, $vid) {
+                if (!isset($hangouts[$c])) throw new HttpError(404, 'No such hangout');
+                $hangouts[$c]['votes'] = array_values(array_filter($hangouts[$c]['votes'], fn($v) => $v['id'] !== $vid));
+                return $hangouts[$c];
             });
-            sendJson(200, publicPoll($p));
+            sendJson(200, publicHangout($p));
         }
         throw new HttpError(404, 'Not found');
     }
 
-    if ($a === 'polls' && $b !== null) {
+    if ($a === 'hangouts' && $b !== null) {
         if ($c === 'logo' && $method === 'GET') {
-            if (!withPolls(fn(array &$polls) => isset($polls[$b]))) throw new HttpError(404, 'No such poll');
+            if (!withHangouts(fn(array &$hangouts) => isset($hangouts[$b]))) throw new HttpError(404, 'No such hangout');
             sendLogo($b);
         }
         if ($c === null && $method === 'GET') {
-            $p = withPolls(fn(array &$polls) => $polls[$b] ?? null);
-            if (!$p) throw new HttpError(404, 'No such poll');
-            sendJson(200, publicPoll($p));
+            $p = withHangouts(fn(array &$hangouts) => $hangouts[$b] ?? null);
+            if (!$p) throw new HttpError(404, 'No such hangout');
+            sendJson(200, publicHangout($p));
         }
         if ($c === 'votes' && $method === 'POST') {
             $body = readJson();
-            [$p, $status, $voteId] = withPolls(function (array &$polls) use ($b, $body) {
-                if (!isset($polls[$b])) throw new HttpError(404, 'No such poll');
-                $p = &$polls[$b];
-                if (!empty($p['closed'])) throw new HttpError(403, 'Poll is closed');
+            [$p, $status, $voteId] = withHangouts(function (array &$hangouts) use ($b, $body) {
+                if (!isset($hangouts[$b])) throw new HttpError(404, 'No such hangout');
+                $p = &$hangouts[$b];
+                if (!empty($p['closed'])) throw new HttpError(403, 'Hangout is closed');
                 $name = str($body['name'] ?? '', 40);
                 if ($name === '') throw new HttpError(400, 'Name required');
                 $in = is_array($body['answers'] ?? null) ? $body['answers'] : [];
@@ -356,12 +356,12 @@ function api(array $parts, string $method): void {
                     }
                     throw new HttpError(404, 'No such response');
                 }
-                if (count($p['votes']) >= 500) throw new HttpError(403, 'Poll is full');
+                if (count($p['votes']) >= 500) throw new HttpError(403, 'Hangout is full');
                 $v = ['id' => rid(6), 'name' => $name, 'answers' => $answers, 'created' => time()];
                 $p['votes'][] = $v;
                 return [$p, 201, $v['id']];
             });
-            sendJson($status, ['poll' => publicPoll($p), 'voteId' => $voteId]);
+            sendJson($status, ['hangout' => publicHangout($p), 'voteId' => $voteId]);
         }
     }
     throw new HttpError(404, 'Not found');
@@ -387,7 +387,7 @@ try {
     if ($method !== 'GET' && $method !== 'HEAD') throw new HttpError(405, 'Method not allowed');
     if ($path === '/') page('index.html');
     if ($path === '/admin') page('admin.html');
-    if (preg_match('#^/p/[\w-]+$#', $path)) page('poll.html');
+    if (preg_match('#^/p/[\w-]+$#', $path)) page('hangout.html');
     throw new HttpError(404, 'Not found');
 } catch (HttpError $e) {
     $status = $e->status; $msg = $e->getMessage();

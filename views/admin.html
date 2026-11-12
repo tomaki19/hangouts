@@ -9,7 +9,7 @@
 <script src="/common.js"></script>
 <script>
 const app = document.getElementById('app');
-let polls = [];
+let hangouts = [];
 let drawOptsRef = () => {}; // set by editView so colorPicker can redraw the entry list
 // replaceChildren() would stringify null and arrays, so flatten and skip them
 const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -29,7 +29,7 @@ function loginView() {
 }
 
 async function load() {
-  try { polls = await api('GET', '/api/admin/polls'); listView(); }
+  try { hangouts = await api('GET', '/api/admin/hangouts'); listView(); }
   catch (e) { if (e.status === 401) loginView(); else app.textContent = e.message; }
 }
 
@@ -56,18 +56,18 @@ async function scaleLogo(file) {
 
 function listView() {
   show(
-    el('div', { class: 'row spread' }, el('h1', {}, 'Your polls'),
+    el('div', { class: 'row spread' }, el('h1', {}, 'Your hangouts'),
       el('div', { class: 'row' },
-        el('button', { onclick: () => editView(null) }, 'New poll'),
+        el('button', { onclick: () => editView(null) }, 'New hangout'),
         el('button', { class: 'secondary', onclick: async () => { await api('POST', '/api/logout'); loginView(); } }, 'Log out'))),
-    polls.length ? null : el('p', { class: 'muted' }, 'No polls yet.'),
-    polls.map((p) => el('div', { class: 'card' },
+    hangouts.length ? null : el('p', { class: 'muted' }, 'No hangouts yet.'),
+    hangouts.map((p) => el('div', { class: 'card' },
       el('div', { class: 'row spread' },
         el('strong', {}, p.title, p.closed ? ' (closed)' : ''),
         el('span', { class: 'muted' }, p.votes.length + ' responses')),
-      el('p', { class: 'link' }, el('a', { href: pollUrl(p.id), target: '_blank', rel: 'noopener' }, pollUrl(p.id))),
+      el('p', { class: 'link' }, el('a', { href: hangoutUrl(p.id), target: '_blank', rel: 'noopener' }, hangoutUrl(p.id))),
       el('div', { class: 'row' },
-        el('button', { class: 'small', onclick: (e) => { navigator.clipboard.writeText(pollUrl(p.id)); e.target.textContent = 'Copied'; } }, 'Copy link'),
+        el('button', { class: 'small', onclick: (e) => { navigator.clipboard.writeText(hangoutUrl(p.id)); e.target.textContent = 'Copied'; } }, 'Copy link'),
         el('button', { class: 'small secondary', onclick: () => editView(p) }, 'Edit')))));
 }
 
@@ -105,7 +105,7 @@ function editView(p) {
   const st = {
     title: p ? p.title : '', description: p ? p.description : '', closed: p ? p.closed : false,
     options: p ? p.options.map((o) => ({ ...o })) : [],
-    logoData: null, logoRemove: false, // pending logo change, sent after the poll is saved
+    logoData: null, logoRemove: false, // pending logo change, sent after the hangout is saved
   };
   const err = el('p', { class: 'error' });
 
@@ -167,7 +167,7 @@ function editView(p) {
   drawOptsRef = drawOpts;
   drawCal(); drawOpts();
 
-  // --- logo for this poll: shown at the top of its page ---
+  // --- logo for this hangout: shown at the top of its page ---
   const logoBox = el('div');
   const drawLogo = () => {
     const cur = st.logoData || (!st.logoRemove && p && p.logo) || '';
@@ -180,7 +180,7 @@ function editView(p) {
     } });
     logoBox.replaceChildren(
       el('label', {}, 'Logo'),
-      cur ? el('img', { class: 'logo', src: cur, alt: 'Poll logo' }) : el('p', { class: 'muted' }, 'No logo. It is shown at the top of this poll.'),
+      cur ? el('img', { class: 'logo', src: cur, alt: 'Hangout logo' }) : el('p', { class: 'muted' }, 'No logo. It is shown at the top of this hangout.'),
       file,
       el('div', { class: 'row' },
         el('button', { type: 'button', class: 'small secondary', onclick: () => file.click() }, cur ? 'Change logo' : 'Upload logo'),
@@ -191,9 +191,9 @@ function editView(p) {
   const save = async () => {
     try {
       const body = { title: st.title, description: st.description, closed: st.closed, options: st.options.filter((o) => o.date || o.note.trim()) };
-      const saved = p ? await api('PUT', '/api/admin/polls/' + p.id, body) : await api('POST', '/api/admin/polls', body);
-      if (st.logoData) await api('PUT', `/api/admin/polls/${saved.id}/logo`, { image: st.logoData });
-      else if (st.logoRemove && p && p.logo) await api('DELETE', `/api/admin/polls/${saved.id}/logo`);
+      const saved = p ? await api('PUT', '/api/admin/hangouts/' + p.id, body) : await api('POST', '/api/admin/hangouts', body);
+      if (st.logoData) await api('PUT', `/api/admin/hangouts/${saved.id}/logo`, { image: st.logoData });
+      else if (st.logoRemove && p && p.logo) await api('DELETE', `/api/admin/hangouts/${saved.id}/logo`);
       await load();
     } catch (e) { err.textContent = e.message; }
   };
@@ -202,11 +202,11 @@ function editView(p) {
     p.votes.map((v) => el('div', { class: 'row spread' }, v.name,
       el('button', { class: 'small danger', onclick: async () => {
         if (!confirm('Delete response from ' + v.name + '?')) return;
-        p = await api('DELETE', `/api/admin/polls/${p.id}/votes/${v.id}`); editView(p);
+        p = await api('DELETE', `/api/admin/hangouts/${p.id}/votes/${v.id}`); editView(p);
       } }, 'Delete')))) : null;
 
   show(
-    el('h1', {}, p ? 'Edit poll' : 'New poll'),
+    el('h1', {}, p ? 'Edit hangout' : 'New hangout'),
     el('div', { class: 'card' },
       el('label', {}, 'Title'), el('input', { maxlength: 120, value: st.title, oninput: (e) => { st.title = e.target.value; } }),
       el('label', {}, 'Description'), el('textarea', { rows: 3, maxlength: 1000, oninput: (e) => { st.description = e.target.value; } }, st.description),
@@ -219,9 +219,9 @@ function editView(p) {
         el('button', { onclick: save }, 'Save'),
         el('button', { class: 'secondary', onclick: load }, 'Cancel'),
         p ? el('button', { class: 'danger', onclick: async () => {
-          if (!confirm('Delete this poll and all responses?')) return;
-          await api('DELETE', '/api/admin/polls/' + p.id); load();
-        } }, 'Delete poll') : null)),
+          if (!confirm('Delete this hangout and all responses?')) return;
+          await api('DELETE', '/api/admin/hangouts/' + p.id); load();
+        } }, 'Delete hangout') : null)),
     votes);
 }
 

@@ -6,7 +6,7 @@ RewriteEngine On
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteRule ^ index.php [L]
 
-# Never serve the config, the stored polls, or the raw page templates directly
+# Never serve the config, the stored hangouts, or the raw page templates directly
 <FilesMatch "^(config\.php|config\.sample\.php|hash-password\.php)$">
   Require all denied
 </FilesMatch>
