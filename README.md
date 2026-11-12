@@ -5,7 +5,7 @@ Simple scheduling polls for shared PHP hosting. PHP backend, plain JavaScript fr
 ## Features
 - **Admin page** (password protected): create, edit, close and delete polls; delete individual responses.
 - **Calendar date picker**: tap days to add them as options; tap a day again to add another entry on the same day. Entries are removed with ✕. Add a time or note to each entry, with an emoji picker.
-- **Logo per poll**: in the poll editor the admin can upload an optional logo (PNG, JPEG, WebP, GIF or SVG; rasters are scaled down in the browser; SVGs are sanitised on the server, stripping scripts, event handlers and external references; stored as `data/logos/<poll>.dat`). It is shown at the top of that poll's page and removed together with the poll.
+- **Logo per poll**: in the poll editor the admin can upload an optional logo (PNG, JPEG, WebP, GIF or SVG; rasters are scaled down in the browser; SVGs are sanitised on the server (UTF-8 only, no DOCTYPE/entities, only plain SVG elements; scripts, event handlers and external references are stripped); stored as `data/logos/<poll>.dat`). It is shown at the top of that poll's page and removed together with the poll.
 - **Public poll link** with an unguessable id: anyone can add a response (Yes / Maybe / No per option). The table shows everyone's answers, with totals per option.
 - **Anyone with the link can edit any response** by clicking the name (like Doodle/Framadate). Only the admin can delete responses. Closed polls are read-only.
 - Mobile friendly: large touch targets, stacked editor rows on small screens.
@@ -26,12 +26,14 @@ PHP >= 7.4 (8.x recommended) with the `mbstring` extension, and a web server tha
 |---|---|
 | `admin_password_hash` | Required. Create it with `php hash-password.php`. |
 | `base` | Optional URL prefix, normally left unset: links follow how the page was opened (`/admin` gives `/p/<id>`, `/index.php/admin` gives `/index.php/p/<id>`). Force a style with `''` or `'/index.php'`. |
+| `insecure_cookie` | Optional, `true` only for local development over plain http. Drops the `Secure` flag and `__Host-` prefix of the login cookie. Never use it in production. |
 | `data_dir` | Optional. Where polls, sessions and login attempts are stored (must be writable). Best placed outside the web root. |
 
 ## Security notes
 - The password is stored only as an Argon2id/bcrypt hash. Login attempts are rate limited per IP (10 failures per 15 minutes).
 - Admin sessions are random tokens. Only their SHA-256 is stored, in `data/sessions.json`, so neither the config nor the data files contain anything that can log someone in or forge a cookie. To log everyone out, delete that file.
-- Cookies are `HttpOnly` and `SameSite=Strict`, and `Secure` over HTTPS. Use HTTPS, or the password and session cookie travel unencrypted.
+- The login cookie is `__Host-session`: always `Secure`, `HttpOnly`, `SameSite=Strict`, path `/`, so it only works over HTTPS (use `insecure_cookie` for local http development) and can't be overwritten from a subdomain or plain http.
+- PHP errors are logged, never printed into responses (`display_errors` is forced off).
 - Page content is built with `textContent`, API requests must be JSON, and a strict Content-Security-Policy is sent.
 - `.htaccess` blocks `data/`, `views/` and `config.php` when it is active, so check that `https://your-domain/data/polls.json` does **not** show content, and prefer `data_dir` outside the web root.
 - Poll links are unguessable but not secret from anyone you share them with, and any visitor can change anyone's response. Close a poll to freeze it.

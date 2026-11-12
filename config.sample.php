@@ -7,6 +7,8 @@ return [
     // Optional. Normally leave unset: links follow how the page was opened (/admin gives /p/<id>, /index.php/admin
     // gives /index.php/p/<id>). Force a style with '' (short URLs) or '/index.php'.
     // 'base' => '',
+    // Local development over plain http only: drops the Secure flag and __Host- prefix of the login cookie.
+    // 'insecure_cookie' => true,
     // optional: store polls outside the web root (must be writable by PHP), e.g. '/home/you/hangout-data'
     // 'data_dir' => __DIR__ . '/data',
 ];

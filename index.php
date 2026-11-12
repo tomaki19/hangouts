@@ -2,6 +2,12 @@
 // Hangout (PHP port): front controller for the JSON API and the HTML pages. PHP >= 7.4.
 declare(strict_types=1);
 
+// Never print PHP errors into responses (they can reveal file paths); log them instead.
+ini_set('display_errors', '0');
+ini_set('html_errors', '0');
+ini_set('log_errors', '1');
+error_reporting(E_ALL);
+
 $cfgFile = is_file(__DIR__ . '/config.php') ? __DIR__ . '/config.php' : null;
 if (!$cfgFile) { http_response_code(500); exit('Copy config.sample.php to config.php and set the password.'); }
 $cfg = require $cfgFile;
@@ -10,6 +16,8 @@ $ADMIN_HASH = (string)($cfg['admin_password_hash'] ?? '');
 // /admin (rewrites work) gives short links, /index.php/admin gives /index.php/... links.
 $BASE_CFG = array_key_exists('base', $cfg) ? rtrim((string)$cfg['base'], '/') : null;
 $DATA_DIR = rtrim((string)($cfg['data_dir'] ?? (__DIR__ . '/data')), '/');
+// Local http development only: drops the Secure flag and the __Host- prefix so the cookie works without HTTPS.
+$INSECURE_COOKIE = !empty($cfg['insecure_cookie']);
 if (!preg_match('/^\$(2y|argon2id?)\$/', $ADMIN_HASH)) {
     http_response_code(500);
     exit('Set admin_password_hash in config.php (create it with: php hash-password.php).');
@@ -27,9 +35,6 @@ class HttpError extends Exception {
 // ---------- helpers ----------
 function rid(int $n = 9): string { return rtrim(strtr(base64_encode(random_bytes($n)), '+/', '-_'), '='); }
 function str($v, int $max): string { return is_string($v) ? mb_substr(trim($v), 0, $max) : ''; }
-function isHttps(): bool {
-    return (($_SERVER['HTTPS'] ?? 'off') !== 'off') || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
-}
 function headers_common(): void {
     header('X-Content-Type-Options: nosniff');
     header('Referrer-Policy: no-referrer');
@@ -85,22 +90,25 @@ function newSession(): string {
     });
     return $token;
 }
+// __Host- cookies must be Secure, set with path=/ and no Domain, so subdomains and plain http can't overwrite them
+function cookieName(): string { global $INSECURE_COOKIE; return $INSECURE_COOKIE ? 'session' : '__Host-session'; }
 function endSession(): void {
-    $t = $_COOKIE['session'] ?? '';
+    $t = $_COOKIE[cookieName()] ?? '';
     if (!is_string($t) || $t === '') return;
     $h = hash('sha256', $t);
     sessionStore(function (array &$sessions) use ($h) { unset($sessions[$h]); });
 }
 function isAdmin(): bool {
-    $t = $_COOKIE['session'] ?? '';
+    $t = $_COOKIE[cookieName()] ?? '';
     if (!is_string($t) || $t === '') return false;
     $h = hash('sha256', $t);
     return sessionStore(fn(array &$sessions) => isset($sessions[$h]) && $sessions[$h] > time());
 }
 function setSession(?string $value): void {
-    setcookie('session', $value ?? '', [
+    global $INSECURE_COOKIE;
+    setcookie(cookieName(), $value ?? '', [
         'expires' => $value === null ? time() - 3600 : time() + SESSION_TTL,
-        'path' => '/', 'secure' => isHttps(), 'httponly' => true, 'samesite' => 'Strict',
+        'path' => '/', 'secure' => !$INSECURE_COOKIE, 'httponly' => true, 'samesite' => 'Strict',
     ]);
 }
 // 10 failed logins per IP per 15 minutes
@@ -178,6 +186,8 @@ function sendLogo(string $pollId): void {
 function sanitizeSvg(string $svg): string {
     if (strlen($svg) > LOGO_SVG_MAX_BYTES) throw new HttpError(413, 'SVG too large (max 200 KB)');
     if (!class_exists('DOMDocument')) throw new HttpError(500, 'SVG needs the PHP dom extension');
+    // UTF-8 only: other encodings (UTF-16 ...) would hide markup from the text checks below
+    if (!mb_check_encoding($svg, 'UTF-8') || strpos($svg, "\0") !== false) throw new HttpError(400, 'SVG must be UTF-8 text');
     if (preg_match('/<!\s*(DOCTYPE|ENTITY)/i', $svg)) throw new HttpError(400, 'SVG with DOCTYPE or entities is not allowed');
     $css = fn(string $c): bool => (bool)preg_match('/@import|expression\s*\(|javascript:|behavior\s*:|url\(\s*[\'"]?\s*(?!#)/i', $c);
     $prev = libxml_use_internal_errors(true);
@@ -185,12 +195,15 @@ function sanitizeSvg(string $svg): string {
     $ok = $doc->loadXML($svg, LIBXML_NONET | LIBXML_NOBLANKS);
     libxml_clear_errors();
     libxml_use_internal_errors($prev);
+    if ($ok && $doc->doctype !== null) throw new HttpError(400, 'SVG with DOCTYPE or entities is not allowed'); // also catches what the text check missed
     $root = $ok ? $doc->documentElement : null;
     if (!$root || strtolower($root->localName) !== 'svg' || $root->namespaceURI !== 'http://www.w3.org/2000/svg') throw new HttpError(400, 'Not a valid SVG');
     $banned = ['script', 'foreignobject', 'iframe', 'embed', 'object', 'audio', 'video', 'canvas', 'a', 'animate', 'set', 'animatemotion', 'animatetransform', 'handler', 'listener', 'image'];
     $drop = [];
     foreach ((new DOMXPath($doc))->query('//*') as $el) {
         $name = strtolower($el->localName);
+        // only plain SVG elements survive: foreign namespaces (XHTML, editor metadata ...) are removed with their children
+        if ($el->namespaceURI !== 'http://www.w3.org/2000/svg') { $drop[] = $el; continue; }
         if (in_array($name, $banned, true) || ($name === 'style' && $css($el->textContent))) { $drop[] = $el; continue; }
         foreach (iterator_to_array($el->attributes) as $attr) {
             $an = strtolower($attr->localName);
