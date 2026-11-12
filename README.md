@@ -5,6 +5,7 @@ Simple scheduling polls for shared PHP hosting. PHP backend, plain JavaScript fr
 ## Features
 - **Admin page** (password protected): create, edit, close and delete polls; delete individual responses.
 - **Calendar date picker**: tap days to add them as options; tap a day again to add another entry on the same day. Entries are removed with ✕. Add a time or note to each entry, with an emoji picker.
+- **Logo per poll**: in the poll editor the admin can upload an optional logo (PNG, JPEG, WebP, GIF or SVG; rasters are scaled down in the browser; SVGs are sanitised on the server, stripping scripts, event handlers and external references; stored as `data/logos/<poll>.dat`). It is shown at the top of that poll's page and removed together with the poll.
 - **Public poll link** with an unguessable id: anyone can add a response (Yes / Maybe / No per option). The table shows everyone's answers, with totals per option.
 - **Anyone with the link can edit any response** by clicking the name (like Doodle/Framadate). Only the admin can delete responses. Closed polls are read-only.
 - Mobile friendly: large touch targets, stacked editor rows on small screens.

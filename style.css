@@ -125,3 +125,6 @@ button.hl { border: 2px solid var(--hl); }
 .color-pop .none { grid-column: 1 / -1; }
 .swatch { min-height: 36px; border-radius: 8px; border: 0; background: var(--hl); padding: 0; }
 .swatch.none { background: transparent; border: 1px solid var(--line); color: var(--text); }
+
+/* ---- logo ---- */
+.logo { display: block; max-width: 100%; max-height: 80px; width: auto; height: auto; margin: 0 0 12px; }

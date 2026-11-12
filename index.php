@@ -34,7 +34,7 @@ function headers_common(): void {
     header('X-Content-Type-Options: nosniff');
     header('Referrer-Policy: no-referrer');
     header('X-Frame-Options: DENY');
-    header("Content-Security-Policy: default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'");
+    header("Content-Security-Policy: default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data:");
 }
 function sendJson(int $status, $body): void {
     http_response_code($status);
@@ -43,10 +43,10 @@ function sendJson(int $status, $body): void {
     echo json_encode($body, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     exit;
 }
-function readJson(): array {
+function readJson(int $max = 100 * 1024): array {
     if (stripos($_SERVER['CONTENT_TYPE'] ?? '', 'application/json') !== 0) throw new HttpError(415, 'JSON required');
-    $raw = file_get_contents('php://input', false, null, 0, 100 * 1024 + 1);
-    if (strlen($raw) > 100 * 1024) throw new HttpError(413, 'Too large');
+    $raw = file_get_contents('php://input', false, null, 0, $max + 1);
+    if (strlen($raw) > $max) throw new HttpError(413, 'Too large');
     $d = $raw === '' ? [] : json_decode($raw, true);
     if (!is_array($d)) throw new HttpError(400, 'Bad JSON');
     return $d;
@@ -136,12 +136,95 @@ function cleanOptions($input, array $existing = []): array {
 function publicPoll(array $p): array {
     return [
         'id' => $p['id'], 'title' => $p['title'], 'description' => $p['description'],
-        'options' => array_values($p['options']), 'closed' => !empty($p['closed']),
+        'options' => array_values($p['options']), 'closed' => !empty($p['closed']), 'logo' => logoUrl($p['id']),
         'votes' => array_map(fn($v) => ['id' => $v['id'], 'name' => $v['name'], 'answers' => (object)$v['answers']], array_values($p['votes'])),
     ];
 }
 
 // ---------- API ----------
+// ---------- poll logos (one optional image per poll, data/logos/<pollId>.dat) ----------
+const LOGO_TYPES = [IMAGETYPE_PNG, IMAGETYPE_JPEG, IMAGETYPE_WEBP];
+const LOGO_MAX_BYTES = 800 * 1024;
+const LOGO_SVG_MAX_BYTES = 200 * 1024;
+function logoFile(string $pollId): string {
+    global $DATA_DIR;
+    if (!preg_match('/^[A-Za-z0-9_-]+$/', $pollId)) throw new HttpError(404, 'No such poll');
+    return $DATA_DIR . '/logos/' . $pollId . '.dat';
+}
+function logoUrl(string $pollId): string { // '' when the poll has no logo; ?v= busts the browser cache after a change
+    global $BASE;
+    $f = logoFile($pollId);
+    return is_file($f) ? $BASE . '/api/polls/' . $pollId . '/logo?v=' . filemtime($f) : '';
+}
+function sendLogo(string $pollId): void {
+    $f = logoFile($pollId);
+    $raw = is_file($f) ? file_get_contents($f) : false;
+    if ($raw === false || $raw === '') throw new HttpError(404, 'No logo');
+    if ($raw[0] === '<') { // sanitized SVG (raster files never start with '<')
+        $mime = 'image/svg+xml';
+    } else {
+        $info = getimagesizefromstring($raw);
+        if (!$info || !in_array($info[2], LOGO_TYPES, true)) throw new HttpError(404, 'No logo');
+        $mime = $info['mime'];
+    }
+    header('Content-Type: ' . $mime);
+    header('X-Content-Type-Options: nosniff');
+    header("Content-Security-Policy: default-src 'none'; sandbox");
+    header('Cache-Control: public, max-age=31536000, immutable'); // URL changes with ?v= on update
+    echo $raw;
+    exit;
+}
+// Parse an uploaded SVG and strip everything that could run code or load something. Returns the clean markup.
+function sanitizeSvg(string $svg): string {
+    if (strlen($svg) > LOGO_SVG_MAX_BYTES) throw new HttpError(413, 'SVG too large (max 200 KB)');
+    if (!class_exists('DOMDocument')) throw new HttpError(500, 'SVG needs the PHP dom extension');
+    if (preg_match('/<!\s*(DOCTYPE|ENTITY)/i', $svg)) throw new HttpError(400, 'SVG with DOCTYPE or entities is not allowed');
+    $css = fn(string $c): bool => (bool)preg_match('/@import|expression\s*\(|javascript:|behavior\s*:|url\(\s*[\'"]?\s*(?!#)/i', $c);
+    $prev = libxml_use_internal_errors(true);
+    $doc = new DOMDocument();
+    $ok = $doc->loadXML($svg, LIBXML_NONET | LIBXML_NOBLANKS);
+    libxml_clear_errors();
+    libxml_use_internal_errors($prev);
+    $root = $ok ? $doc->documentElement : null;
+    if (!$root || strtolower($root->localName) !== 'svg' || $root->namespaceURI !== 'http://www.w3.org/2000/svg') throw new HttpError(400, 'Not a valid SVG');
+    $banned = ['script', 'foreignobject', 'iframe', 'embed', 'object', 'audio', 'video', 'canvas', 'a', 'animate', 'set', 'animatemotion', 'animatetransform', 'handler', 'listener', 'image'];
+    $drop = [];
+    foreach ((new DOMXPath($doc))->query('//*') as $el) {
+        $name = strtolower($el->localName);
+        if (in_array($name, $banned, true) || ($name === 'style' && $css($el->textContent))) { $drop[] = $el; continue; }
+        foreach (iterator_to_array($el->attributes) as $attr) {
+            $an = strtolower($attr->localName);
+            $v = trim($attr->value);
+            if (strpos($an, 'on') === 0
+                || ($an === 'href' && ($v === '' || $v[0] !== '#'))              // only references to this file's own ids
+                || ($an === 'style' && $css($v))
+                || preg_match('/javascript:|vbscript:|data:text/i', $v)) {
+                $el->removeAttributeNode($attr);
+            }
+        }
+    }
+    foreach ($drop as $el) if ($el->parentNode) $el->parentNode->removeChild($el);
+    return $doc->saveXML($root);
+}
+
+function saveLogo(string $pollId, string $dataUrl): void {
+    if (!preg_match('#^data:image/(png|jpeg|webp|svg\+xml);base64,([A-Za-z0-9+/=\s]+)$#', $dataUrl, $m)) throw new HttpError(400, 'Use a PNG, JPEG, WebP or SVG image');
+    $raw = base64_decode($m[2], true);
+    if ($raw === false) throw new HttpError(400, 'Bad image data');
+    if ($m[1] === 'svg+xml') {
+        $raw = sanitizeSvg($raw);
+    } else {
+        if (strlen($raw) > LOGO_MAX_BYTES) throw new HttpError(413, 'Image too large (max 800 KB)');
+        $info = getimagesizefromstring($raw); // checks the real content, not the claimed type
+        if (!$info || !in_array($info[2], LOGO_TYPES, true)) throw new HttpError(400, 'Not a valid PNG, JPEG, WebP or SVG image');
+        if ($info[0] > 2000 || $info[1] > 2000) throw new HttpError(400, 'Image dimensions too large');
+    }
+    $f = logoFile($pollId);
+    if (!is_dir(dirname($f))) mkdir(dirname($f), 0755, true);
+    $tmp = $f . '.tmp';
+    if (file_put_contents($tmp, $raw, LOCK_EX) === false || !rename($tmp, $f)) throw new RuntimeException('Cannot save logo');
+}
+
 function api(array $parts, string $method): void {
     global $ADMIN_HASH;
     [$a, $b, $c, $d] = array_pad($parts, 4, null);
@@ -162,6 +245,17 @@ function api(array $parts, string $method): void {
     if ($a === 'admin') {
         if (!isAdmin()) throw new HttpError(401, 'Login required');
         if ($b !== 'polls') throw new HttpError(404, 'Not found');
+
+        if ($c !== null && $d === 'logo' && ($method === 'PUT' || $method === 'DELETE')) {
+            if (!withPolls(fn(array &$polls) => isset($polls[$c]))) throw new HttpError(404, 'No such poll');
+            if ($method === 'PUT') {
+                $body = readJson(1200 * 1024);
+                saveLogo($c, is_string($body['image'] ?? null) ? $body['image'] : '');
+            } elseif (is_file(logoFile($c))) {
+                unlink(logoFile($c));
+            }
+            sendJson(200, ['logo' => logoUrl($c)]);
+        }
 
         if ($c === null && $method === 'GET') {
             $list = withPolls(fn(array &$polls) => array_values($polls));
@@ -201,6 +295,7 @@ function api(array $parts, string $method): void {
         if ($c !== null && $d === null && $method === 'DELETE') {
             $found = withPolls(function (array &$polls) use ($c) { $f = isset($polls[$c]); unset($polls[$c]); return $f; });
             if (!$found) throw new HttpError(404, 'No such poll');
+            if (is_file(logoFile($c))) unlink(logoFile($c));
             sendJson(200, ['ok' => true]);
         }
         if ($c !== null && $d === 'votes' && isset($parts[4]) && $method === 'DELETE') {
@@ -216,6 +311,10 @@ function api(array $parts, string $method): void {
     }
 
     if ($a === 'polls' && $b !== null) {
+        if ($c === 'logo' && $method === 'GET') {
+            if (!withPolls(fn(array &$polls) => isset($polls[$b]))) throw new HttpError(404, 'No such poll');
+            sendLogo($b);
+        }
         if ($c === null && $method === 'GET') {
             $p = withPolls(fn(array &$polls) => $polls[$b] ?? null);
             if (!$p) throw new HttpError(404, 'No such poll');
