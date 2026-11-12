@@ -1,23 +1,52 @@
-# Hangout – PHP version (for shared hosting such as hoststar.ch)
+# Hangout
 
-Same app and same frontend as the Node version, with the backend in `index.php`. PHP >= 7.4, Apache with `mod_rewrite` and `.htaccess` enabled. No database; polls live in `data/polls.json`.
+Simple Doodle-style scheduling polls for shared PHP hosting (built for hoststar.ch). PHP backend, plain JavaScript frontend, no database, no dependencies.
+
+## Features
+- **Admin page** (password protected): create, edit, close and delete polls; delete individual responses.
+- **Calendar date picker**: tap days to add them as options; tap a day again to add another entry on the same day. Entries are removed with ✕. Add a time or note to each entry, with an emoji picker.
+- **Public poll link** with an unguessable id: anyone can add a response (Yes / Maybe / No per option). The table shows everyone's answers, with totals per option.
+- **Anyone with the link can edit any response** by clicking the name (like Doodle/Framadate). Only the admin can delete responses. Closed polls are read-only.
+- Mobile friendly: large touch targets, stacked editor rows on small screens.
+
+## Requirements
+PHP >= 7.4 (8.x recommended) with the `mbstring` extension, and a web server that can run PHP. Works on nginx and Apache. Polls are stored in `data/polls.json`.
 
 ## Deploy
-1. In the hosting control panel, choose PHP 8.x for the domain/subdomain and enable HTTPS.
-2. Upload the contents of this folder (including the hidden `.htaccess` files) to the **root** of the domain or subdomain (the pages use absolute `/api/...` paths, so a sub-folder won't work; use a subdomain like `hangout.example.ch`).
-3. On your own computer run `php hash-password.php` (type the password when prompted) and copy the printed hash. Copy `config.sample.php` to `config.php` and paste the hash into `admin_password_hash`, in single quotes. Only the hash is stored on the server, never the password. Do not upload `hash-password.php` if you don't need it (it refuses to run from the web anyway).
-4. Make `data/` writable by PHP (usually 755 already works; try 775 if saving fails).
-5. Open `https://your-domain/index.php/admin`. (Poll links look like `https://your-domain/index.php/p/<id>`.)
+1. In the hosting control panel, create a domain or subdomain (for example `hangout.example.ch`), choose PHP 8.x, and enable HTTPS (a free certificate).
+2. Upload the contents of this folder, including the hidden `.htaccess` files, to the **root** of that domain. The pages use absolute `/api/...` paths, so a sub-folder won't work.
+3. On your own computer run `php hash-password.php`, type the admin password when prompted, and copy the printed hash.
+4. Copy `config.sample.php` to `config.php` and paste the hash into `admin_password_hash`, **in single quotes** (the hash contains `$`). Only the hash is stored on the server, never the password. `hash-password.php` does not need to be uploaded.
+5. Make sure `data/` is writable by PHP (755 usually works; try 775 if saving fails).
+6. Open `https://your-domain/index.php/admin`. Poll links look like `https://your-domain/index.php/p/<id>`; the admin page has a copy-link button for each poll.
 
-Short URLs (`/admin`, `/p/<id>`) need rewrite rules. They work on Apache hosts that honour `.htaccess`: set `'base' => ''` in `config.php`. nginx servers ignore `.htaccess`, so keep the default `'/index.php'` there.
+## Configuration (`config.php`)
+| Key | Meaning |
+|---|---|
+| `admin_password_hash` | Required. Create it with `php hash-password.php`. |
+| `base` | URL prefix, default `'/index.php'`, which works on any server (nginx, no rewrites). Set `''` for the short URLs `/admin` and `/p/<id>` if the server applies the rewrite rules in `.htaccess` (Apache hosts that honour it). |
+| `data_dir` | Optional. Where polls, sessions and login attempts are stored (must be writable). Best placed outside the web root. |
 
-Admin sessions are random tokens kept (hashed) in `data/sessions.json`; the config holds no secret that could be used to forge a login. To log everyone out, delete that file.
+## Security notes
+- The password is stored only as an Argon2id/bcrypt hash. Login attempts are rate limited per IP (10 failures per 15 minutes).
+- Admin sessions are random tokens. Only their SHA-256 is stored, in `data/sessions.json`, so neither the config nor the data files contain anything that can log someone in or forge a cookie. To log everyone out, delete that file.
+- Cookies are `HttpOnly` and `SameSite=Strict`, and `Secure` over HTTPS. Use HTTPS, or the password and session cookie travel unencrypted.
+- Page content is built with `textContent`, API requests must be JSON, and a strict Content-Security-Policy is sent.
+- `.htaccess` blocks `data/` and `config.php` on Apache only. nginx ignores it, so check that `https://your-domain/data/polls.json` does **not** show content, and prefer `data_dir` outside the web root.
+- Poll links are unguessable but not secret from anyone you share them with, and any visitor can change anyone's response. Close a poll to freeze it.
 
-Better: set `data_dir` in `config.php` to a folder outside the web root.
+## Files
+| Path | Purpose |
+|---|---|
+| `index.php` | Front controller: JSON API, auth, storage, serves the pages |
+| `views/` | `admin.html`, `poll.html`, `index.html` |
+| `common.js`, `style.css` | Shared frontend code and styles |
+| `hash-password.php` | Command-line helper that creates the password hash |
+| `config.sample.php` | Template for `config.php` (which is git-ignored) |
+| `data/` | Runtime data (git-ignored) |
 
 ## Troubleshooting
-- Blank page or 500: check the host's PHP error log; confirm PHP version.
-- `/admin` or `/p/...` gives 404 (server's own 404 page): rewrites aren't active (nginx, or `.htaccess` not honoured). Use `'base' => '/index.php'` in `config.php` and open `/index.php/admin`.
-- Test that `https://your-domain/data/polls.json` returns 404/403. If it shows content, move `data_dir` out of the web root.
-- Saving polls fails with 500: `data/` is not writable.
-- Login says "Login required" right after logging in: you are on http; cookies are only marked Secure over HTTPS, so use HTTPS.
+- **Blank page or 500:** check the host's PHP error log and the PHP version. A message about `admin_password_hash` means `config.php` is missing or the hash isn't a valid Argon2id/bcrypt hash (check the single quotes).
+- **`/admin` or `/p/...` gives the server's own 404:** rewrites aren't active (nginx, or `.htaccess` not honoured). Keep `'base' => '/index.php'` and use `/index.php/admin`.
+- **Saving a poll or logging in gives 500:** `data/` is not writable.
+- **Changes don't show up:** hard-refresh; browsers cache `style.css` and `common.js`.
