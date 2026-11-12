@@ -1,0 +1,4 @@
+# secrets and runtime data: never commit
+/config.php
+/data/*
+!/data/.htaccess

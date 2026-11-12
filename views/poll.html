@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex"><title>Hangout</title><link rel="stylesheet" href="/style.css"></head>
+<body><main id="app"><p class="muted">Loading…</p></main>
+<script>window.BASE = '__BASE__';</script>
+<script src="/common.js"></script>
+<script>
+const id = location.pathname.split('/').pop();
+const storeKey = 'hangout:' + id;
+let poll, mine = null, draft = null; // mine = {voteId} (just highlights my row); draft = {voteId|null, name, answers}
+try { mine = JSON.parse(localStorage.getItem(storeKey)); } catch {}
+
+const CHOICES = [['ok', 'Yes'], ['maybe', 'Maybe'], ['no', 'No']];
+
+function startDraft(vote) {
+  draft = { voteId: vote ? vote.id : null, name: vote ? vote.name : '', answers: {} };
+  for (const o of poll.options) draft.answers[o.id] = vote ? vote.answers[o.id] || 'no' : 'no';
+}
+
+function render() {
+  const app = document.getElementById('app');
+  app.replaceChildren();
+  document.title = poll.title + ' · Hangout';
+  app.append(el('h1', {}, poll.title));
+  if (poll.description) app.append(el('p', { class: 'muted', style: 'white-space:pre-wrap' }, poll.description));
+
+  const myVote = mine && poll.votes.find((v) => v.id === mine.voteId);
+  const totals = poll.options.map((o) => poll.votes.reduce((n, v) => n + (v.answers[o.id] === 'ok' ? 1 : 0), 0));
+  const maybes = poll.options.map((o) => poll.votes.reduce((n, v) => n + (v.answers[o.id] === 'maybe' ? 1 : 0), 0));
+  const bestScore = Math.max(...totals.map((t, i) => t * 2 + maybes[i]));
+
+  const head = el('tr', {}, el('th', {}, ''), poll.options.map((o) => el('th', {}, optionLabel(o))));
+  const rows = poll.votes.map((v) => {
+    const isMine = myVote && v.id === myVote.id;
+    return el('tr', { class: isMine ? 'mine' : '' },
+      el('td', {}, poll.closed ? v.name : el('button', { class: 'name', title: 'Edit this response', onclick: () => { startDraft(v); render(); window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }); } }, v.name, ' ✎')),
+      poll.options.map((o) => { const a = v.answers[o.id] || 'no'; return el('td', { class: a }, SYMBOL[a]); }));
+  });
+
+  const foot = el('tr', {}, el('td', {}, 'Total ✓'),
+    poll.options.map((o, i) => el('td', { class: poll.votes.length && totals[i] * 2 + maybes[i] === bestScore ? 'best' : '' },
+      String(totals[i]), maybes[i] ? el('span', { class: 'muted' }, ` (+${maybes[i]})`) : null)));
+
+  app.append(el('div', { class: 'card' },
+    el('div', { class: 'table-wrap' }, el('table', {}, el('thead', {}, head), el('tbody', {}, rows), el('tfoot', {}, foot))),
+    poll.closed ? el('p', { class: 'muted' }, 'This poll is closed.') : null,
+    !poll.closed && !draft ? el('p', {}, el('button', { class: 'icon add', title: 'Add my availability', 'aria-label': 'Add my availability', onclick: () => { startDraft(null); render(); window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }); } }, '+')) : null));
+
+  if (draft) {
+    const nameInput = el('input', { placeholder: 'Your name', maxlength: 40, value: draft.name, 'aria-label': 'Your name',
+      autocomplete: 'name', oninput: (e) => { draft.name = e.target.value; } });
+    app.append(el('div', { class: 'card' },
+      el('h2', {}, draft.voteId ? 'Edit ' + draft.name : 'Your availability'),
+      nameInput,
+      poll.options.map((o) => {
+        const group = el('div', { class: 'seg', role: 'group', 'aria-label': optionLabel(o) });
+        const draw = () => group.replaceChildren(...CHOICES.map(([val, text]) =>
+          el('button', { type: 'button', class: 'choice ' + val, 'aria-pressed': String(draft.answers[o.id] === val),
+            onclick: () => { draft.answers[o.id] = val; draw(); } }, text)));
+        draw();
+        return el('div', { class: 'opt' }, el('div', { class: 'opt-label' }, optionLabel(o)), group);
+      }),
+      el('p', { id: 'err', class: 'error' }),
+      el('div', { class: 'row' },
+        el('button', { onclick: submit }, 'Save'),
+        el('button', { class: 'secondary', onclick: () => { draft = null; render(); } }, 'Cancel'))));
+  }
+}
+
+async function submit() {
+  try {
+    const body = { name: draft.name, answers: draft.answers };
+    if (draft.voteId) body.voteId = draft.voteId;
+    const r = await api('POST', '/api/polls/' + id + '/votes', body);
+    if (!draft.voteId) { // new response: remember it so the row is highlighted for this browser
+      mine = { voteId: r.voteId };
+      try { localStorage.setItem(storeKey, JSON.stringify(mine)); } catch {}
+    }
+    poll = r.poll; draft = null; render();
+  } catch (e) { document.getElementById('err').textContent = e.message; }
+}
+
+api('GET', '/api/polls/' + id).then((p) => { poll = p; render(); })
+  .catch(() => { document.getElementById('app').replaceChildren(el('h1', {}, 'Poll not found')); });
+</script></body></html>

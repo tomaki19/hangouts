@@ -1,0 +1,13 @@
+Options -Indexes
+DirectoryIndex index.php
+
+# Everything that is not a real file (style.css, common.js) goes to the front controller
+RewriteEngine On
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteRule ^ index.php [L]
+
+# Never serve the config, the stored polls, or the raw page templates directly
+<FilesMatch "^(config\.php|config\.sample\.php|hash-password\.php)$">
+  Require all denied
+</FilesMatch>
+RedirectMatch 404 ^/(data|views)(/|$)
