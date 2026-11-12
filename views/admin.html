@@ -10,6 +10,7 @@
 <script>
 const app = document.getElementById('app');
 let polls = [];
+let drawOptsRef = () => {}; // set by editView so colorPicker can redraw the entry list
 // replaceChildren() would stringify null and arrays, so flatten and skip them
 const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const show = (...kids) => app.replaceChildren(...kids.flat().filter((k) => k != null));
@@ -68,6 +69,17 @@ function emojiPicker(input) {
   return el('span', { class: 'emoji-wrap' }, btn, pop);
 }
 
+// 🎨 button + swatch popover: optional highlight colour for one entry
+function colorPicker(o) {
+  const pick = (c) => { o.color = c; drawOptsRef(); };
+  const pop = el('div', { class: 'emoji-pop color-pop', role: 'dialog', 'aria-label': 'Pick a highlight colour', hidden: true },
+    COLORS.map((c) => el('button', { type: 'button', class: 'swatch hl-' + c, 'aria-label': c, onclick: () => pick(c) })),
+    el('button', { type: 'button', class: 'swatch none', 'aria-label': 'No colour', onclick: () => pick('') }, '✕'));
+  const btn = el('button', { type: 'button', class: 'small secondary ' + hlClass(o), title: 'Highlight colour', 'aria-label': 'Highlight colour',
+    onclick: () => { const open = pop.hidden; closeEmoji(); pop.hidden = !open; } }, '🎨');
+  return el('span', { class: 'emoji-wrap' }, btn, pop);
+}
+
 function editView(p) {
   const st = {
     title: p ? p.title : '', description: p ? p.description : '', closed: p ? p.closed : false,
@@ -107,15 +119,16 @@ function editView(p) {
   // --- selected options: add a time or note to each, or split a day into several slots ---
   const drawOpts = () => optBox.replaceChildren(...(st.options.length ? st.options.map((o, i) => {
     const note = el('input', { placeholder: 'Time / note (e.g. 18:00)', maxlength: 60, value: o.note, 'aria-label': 'Time or note', oninput: (e) => { o.note = e.target.value; } });
-    return el('div', { class: 'row opt-row' },
+    return el('div', { class: 'row opt-row ' + hlClass(o) },
     el('span', { class: 'opt-date' }, o.date ? optionLabel({ date: o.date }) : 'Text only'),
-    note, emojiPicker(note),
+    note, emojiPicker(note), colorPicker(o),
     o.date ? el('button', { type: 'button', class: 'small secondary', 'aria-label': 'Add another time on this day',
       onclick: () => { st.options.splice(i + 1, 0, { date: o.date, note: '' }); drawOpts(); } }, '+') : null,
     el('button', { type: 'button', class: 'small secondary', 'aria-label': 'Remove option',
       onclick: () => { st.options.splice(i, 1); drawCal(); drawOpts(); } }, '✕'));
   })
     : [el('p', { class: 'muted' }, 'Tap days in the calendar to add them.')]));
+  drawOptsRef = drawOpts;
   drawCal(); drawOpts();
 
   const save = async () => {

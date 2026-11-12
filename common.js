@@ -24,14 +24,25 @@ function el(tag, attrs, ...kids) {
   return n;
 }
 
-function optionLabel(o) {
-  let d = '';
-  if (o.date) { // "01.12.2026"
-    const [y, m, day] = o.date.split('-');
-    d = `${day}.${m}.${y}`;
-  }
-  return [d, o.note].filter(Boolean).join(' · ');
+function dateText(o) { // "01.12.2026"
+  if (!o.date) return '';
+  const [y, m, day] = o.date.split('-');
+  return `${day}.${m}.${y}`;
 }
+
+// plain-text label (aria-label, admin list)
+function optionLabel(o) {
+  return [dateText(o), o.note].filter(Boolean).join(' ');
+}
+
+// visible label: date on the first line, description on the next
+function optionNode(o) {
+  const d = dateText(o);
+  return el('span', {}, d, d && o.note ? el('br') : null, o.note);
+}
+
+const COLORS = ['red', 'orange', 'yellow', 'lime', 'green', 'teal', 'cyan', 'blue', 'purple', 'pink', 'brown', 'gray']; // keep in sync with OPTION_COLORS in index.php
+const hlClass = (o) => (COLORS.includes(o.color) ? 'hl hl-' + o.color : '');
 
 const SYMBOL = { ok: '✓', maybe: '(✓)', no: '✗' };
 const pollUrl = (id) => location.origin + BASE + '/p/' + id;

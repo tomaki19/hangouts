@@ -32,16 +32,16 @@ function render() {
   const maybes = poll.options.map((o) => poll.votes.reduce((n, v) => n + (v.answers[o.id] === 'maybe' ? 1 : 0), 0));
   const bestScore = Math.max(...totals.map((t, i) => t * 2 + maybes[i]));
 
-  const head = el('tr', {}, el('th', {}, ''), poll.options.map((o) => el('th', {}, optionLabel(o))));
+  const head = el('tr', {}, el('th', {}, ''), poll.options.map((o) => el('th', { class: hlClass(o) }, optionNode(o))));
   const rows = poll.votes.map((v) => {
     const isMine = myVote && v.id === myVote.id;
     return el('tr', { class: isMine ? 'mine' : '' },
       el('td', {}, poll.closed ? v.name : el('button', { class: 'name', title: 'Edit this response', onclick: () => { startDraft(v); render(); window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }); } }, v.name, ' ✎')),
-      poll.options.map((o) => { const a = v.answers[o.id] || 'no'; return el('td', { class: a }, SYMBOL[a]); }));
+      poll.options.map((o) => { const a = v.answers[o.id] || 'no'; return el('td', { class: a + ' ' + hlClass(o) }, SYMBOL[a]); }));
   });
 
   const foot = el('tr', {}, el('td', {}, 'Total ✓'),
-    poll.options.map((o, i) => el('td', { class: poll.votes.length && totals[i] * 2 + maybes[i] === bestScore ? 'best' : '' },
+    poll.options.map((o, i) => el('td', { class: (poll.votes.length && totals[i] * 2 + maybes[i] === bestScore ? 'best ' : '') + hlClass(o) },
       String(totals[i]), maybes[i] ? el('span', { class: 'muted' }, ` (+${maybes[i]})`) : null)));
 
   app.append(el('div', { class: 'card' },
@@ -61,7 +61,7 @@ function render() {
           el('button', { type: 'button', class: 'choice ' + val, 'aria-pressed': String(draft.answers[o.id] === val),
             onclick: () => { draft.answers[o.id] = val; draw(); } }, text)));
         draw();
-        return el('div', { class: 'opt' }, el('div', { class: 'opt-label' }, optionLabel(o)), group);
+        return el('div', { class: 'opt ' + hlClass(o) }, el('div', { class: 'opt-label' }, optionNode(o)), group);
       }),
       el('p', { id: 'err', class: 'error' }),
       el('div', { class: 'row' },

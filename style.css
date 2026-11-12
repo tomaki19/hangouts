@@ -5,6 +5,9 @@
   --ok:#1f7a45; --okbg:#dff3e6; --maybe:#8a5a00; --maybebg:#fff1cc; --no:#b8352d; --nobg:#fbe3e1;
   --on-solid:#ffffff; /* text on filled ok/maybe/no buttons */
   --shadow:rgba(20,30,50,.18);
+  /* entry highlight colours */
+  --c-red:#d93a3a; --c-orange:#d9731a; --c-yellow:#d4a400; --c-lime:#7cb518; --c-green:#2e9e5b; --c-teal:#139a92;
+  --c-cyan:#1798c4; --c-blue:#2f6fed; --c-purple:#8a4fd6; --c-pink:#d6409f; --c-brown:#8d5a3b; --c-gray:#6b7385;
 }
 /* dark: used automatically when the browser/OS prefers it */
 @media (prefers-color-scheme: dark) {
@@ -14,6 +17,8 @@
     --ok:#5fd18a; --okbg:#1c3a2a; --maybe:#f0b84a; --maybebg:#3d3217; --no:#ff8a80; --nobg:#4a2523;
     --on-solid:#0b1020;
     --shadow:rgba(0,0,0,.6);
+    --c-red:#ff6b6b; --c-orange:#ffa04d; --c-yellow:#ffd23f; --c-lime:#a6e04a; --c-green:#4cd08a; --c-teal:#3fd6c9;
+    --c-cyan:#5ccbf2; --c-blue:#6ea0ff; --c-purple:#b58cff; --c-pink:#ff7ac8; --c-brown:#d2a27c; --c-gray:#a0a9bd;
   }
 }
 * { box-sizing: border-box; }
@@ -96,3 +101,27 @@ button.add { min-width: 44px; font-size: 1.5rem; padding: 4px 14px; }
 .emoji-pop .emoji { background: transparent; padding: 0; min-height: 40px; font-size: 1.4rem; line-height: 1; border-radius: 6px; }
 .emoji-pop .emoji:hover { background: var(--bg); }
 @media (max-width: 600px) { .emoji-wrap { width: 100%; } .emoji-wrap > button { width: 100%; } .emoji-pop { left: 0; right: 0; width: auto; max-width: none; } }
+
+/* ---- per-entry highlight colours ---- */
+.hl-red { --hl: var(--c-red); }
+.hl-orange { --hl: var(--c-orange); }
+.hl-yellow { --hl: var(--c-yellow); }
+.hl-lime { --hl: var(--c-lime); }
+.hl-green { --hl: var(--c-green); }
+.hl-teal { --hl: var(--c-teal); }
+.hl-cyan { --hl: var(--c-cyan); }
+.hl-blue { --hl: var(--c-blue); }
+.hl-purple { --hl: var(--c-purple); }
+.hl-pink { --hl: var(--c-pink); }
+.hl-brown { --hl: var(--c-brown); }
+.hl-gray { --hl: var(--c-gray); }
+/* whole column of a highlighted entry gets a translucent tint, layered over the Yes/Maybe/No cell colours */
+th.hl, td.hl { background-image: linear-gradient(color-mix(in srgb, var(--hl) 22%, transparent), color-mix(in srgb, var(--hl) 22%, transparent)); }
+@supports not (color: color-mix(in srgb, red 20%, transparent)) { th.hl, td.hl { box-shadow: inset 0 0 0 2px var(--hl); } }
+.opt.hl { border: 2px solid var(--hl); border-radius: 8px; padding: 8px 10px; }
+.opt-row.hl { border-left: 4px solid var(--hl); padding-left: 8px; }
+button.hl { border: 2px solid var(--hl); }
+.color-pop { grid-template-columns: repeat(6, 1fr); width: 16rem; }
+.color-pop .none { grid-column: 1 / -1; }
+.swatch { min-height: 36px; border-radius: 8px; border: 0; background: var(--hl); padding: 0; }
+.swatch.none { background: transparent; border: 1px solid var(--line); color: var(--text); }

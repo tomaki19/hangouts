@@ -16,6 +16,7 @@ if (!preg_match('/^\$(2y|argon2id?)\$/', $ADMIN_HASH)) {
 
 const SESSION_TTL = 7 * 24 * 3600;
 const ANSWERS = ['ok', 'maybe', 'no'];
+const OPTION_COLORS = ['red', 'orange', 'yellow', 'lime', 'green', 'teal', 'cyan', 'blue', 'purple', 'pink', 'brown', 'gray']; // optional highlight per option
 
 class HttpError extends Exception {
     public int $status;
@@ -126,7 +127,8 @@ function cleanOptions($input, array $existing = []): array {
         $note = str($o['note'] ?? '', 60);
         if ($date === '' && $note === '') throw new HttpError(400, 'Option needs a date or text');
         $id = (isset($o['id']) && is_string($o['id']) && in_array($o['id'], $known, true)) ? $o['id'] : rid(4);
-        $out[] = ['id' => $id, 'date' => $date, 'note' => $note];
+        $color = (isset($o['color']) && is_string($o['color']) && in_array($o['color'], OPTION_COLORS, true)) ? $o['color'] : '';
+        $out[] = ['id' => $id, 'date' => $date, 'note' => $note, 'color' => $color];
     }
     return $out;
 }
