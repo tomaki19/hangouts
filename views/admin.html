@@ -16,19 +16,21 @@ const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0
 const show = (...kids) => app.replaceChildren(...kids.flat().filter((k) => k != null));
 
 function loginView() {
-  const pw = el('input', { type: 'password', placeholder: 'Admin password', autocomplete: 'current-password', 'aria-label': 'Admin password' });
+  useLang('');
+  const pw = el('input', { type: 'password', placeholder: t('adminPassword'), autocomplete: 'current-password', 'aria-label': t('adminPassword') });
   const err = el('p', { class: 'error' });
   const go = async () => {
     try { await api('POST', '/api/login', { password: pw.value }); await load(); }
     catch (e) { err.textContent = e.message; }
   };
   pw.addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); });
-  show(el('h1', {}, 'Hangout admin'),
-    el('div', { class: 'card' }, pw, err, el('button', { onclick: go }, 'Log in')));
+  show(el('h1', {}, t('adminTitle')),
+    el('div', { class: 'card' }, pw, err, el('button', { onclick: go }, t('logIn'))));
   pw.focus();
 }
 
 async function load() {
+  useLang(''); // list and login follow the browser; a hangout's editor uses that hangout's language
   try { hangouts = await api('GET', '/api/admin/hangouts'); listView(); }
   catch (e) { if (e.status === 401) loginView(); else app.textContent = e.message; }
 }
@@ -36,7 +38,7 @@ async function load() {
 // Raster images are scaled to fit 600x200 in the browser (keeps transparency) and returned as a data URL; SVG is passed through
 async function scaleLogo(file) {
   if (file.type === 'image/svg+xml' || /\.svg$/i.test(file.name)) { // vector: sent as-is, the server sanitises it
-    if (file.size > 200 * 1024) throw Object.assign(new Error(), { logoMsg: 'SVG too large (max 200 KB)' });
+    if (file.size > 200 * 1024) throw Object.assign(new Error(), { logoMsg: t('svgTooLarge') });
     return await new Promise((resolve, reject) => {
       const r = new FileReader();
       r.onload = () => resolve(String(r.result).replace(/^data:[^;]*;/, 'data:image/svg+xml;'));
@@ -55,20 +57,21 @@ async function scaleLogo(file) {
 }
 
 function listView() {
+  document.title = t('adminTitle');
   show(
-    el('div', { class: 'row spread' }, el('h1', {}, 'Your hangouts'),
+    el('div', { class: 'row spread' }, el('h1', {}, t('yourHangouts')),
       el('div', { class: 'row' },
-        el('button', { onclick: () => editView(null) }, 'New hangout'),
-        el('button', { class: 'secondary', onclick: async () => { await api('POST', '/api/logout'); loginView(); } }, 'Log out'))),
-    hangouts.length ? null : el('p', { class: 'muted' }, 'No hangouts yet.'),
+        el('button', { onclick: () => editView(null) }, t('newHangout')),
+        el('button', { class: 'secondary', onclick: async () => { await api('POST', '/api/logout'); loginView(); } }, t('logOut')))),
+    hangouts.length ? null : el('p', { class: 'muted' }, t('noHangouts')),
     hangouts.map((p) => el('div', { class: 'card' },
       el('div', { class: 'row spread' },
-        el('strong', {}, p.title, p.closed ? ' (closed)' : ''),
-        el('span', { class: 'muted' }, p.votes.length + ' responses')),
+        el('strong', {}, p.title, p.closed ? t('closedSuffix') : ''),
+        el('span', { class: 'muted' }, t('responses', p.votes.length))),
       el('p', { class: 'link' }, el('a', { href: hangoutUrl(p.id), target: '_blank', rel: 'noopener' }, hangoutUrl(p.id))),
       el('div', { class: 'row' },
-        el('button', { class: 'small', onclick: (e) => { navigator.clipboard.writeText(hangoutUrl(p.id)); e.target.textContent = 'Copied'; } }, 'Copy link'),
-        el('button', { class: 'small secondary', onclick: () => editView(p) }, 'Edit')))));
+        el('button', { class: 'small', onclick: (e) => { navigator.clipboard.writeText(hangoutUrl(p.id)); e.target.textContent = t('copied'); } }, t('copyLink')),
+        el('button', { class: 'small secondary', onclick: () => editView(p) }, t('edit'))))));
 }
 
 const EMOJIS = ['🎉','🥳','🎂','🍕','🍔','🍝','🍣','🥗','🍻','🍷','☕','🍰','🎬','🎮','🎲','🎵','🎤','📚','⚽','🏀','🎾','🏐','🏊','🚴','🏃','🥾','⛷️','🏔️','🏖️','🌞','⛅','🌧️','❄️','🌙','🌅','🔥','⭐','❤️','👍','👋','🙂','😎','🤝','🏠','🏢','🏫','🚗','🚆','✈️','🛒','💼','🧑‍🍳','🧹','🔧','🎁','📍','⏰','📅','✅','❓'];
@@ -78,14 +81,14 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeEmoji
 
 // 😀 button + popover grid; inserts the chosen emoji at the cursor of the given input
 function emojiPicker(input) {
-  const pop = el('div', { class: 'emoji-pop', role: 'dialog', 'aria-label': 'Pick an emoji', hidden: true },
+  const pop = el('div', { class: 'emoji-pop', role: 'dialog', 'aria-label': t('pickEmoji'), hidden: true },
     EMOJIS.map((em) => el('button', { type: 'button', class: 'emoji', onclick: () => {
       const at = input.selectionStart == null ? input.value.length : input.selectionStart;
       input.setRangeText(em, at, input.selectionEnd == null ? at : input.selectionEnd, 'end');
       input.dispatchEvent(new Event('input'));
       pop.hidden = true;
     } }, em)));
-  const btn = el('button', { type: 'button', class: 'small secondary', title: 'Insert emoji', 'aria-label': 'Insert emoji',
+  const btn = el('button', { type: 'button', class: 'small secondary', title: t('insertEmoji'), 'aria-label': t('insertEmoji'),
     onclick: () => { const open = pop.hidden; closeEmoji(); pop.hidden = !open; } }, '😀');
   return el('span', { class: 'emoji-wrap' }, btn, pop);
 }
@@ -93,20 +96,22 @@ function emojiPicker(input) {
 // 🎨 button + swatch popover: optional highlight colour for one entry
 function colorPicker(o) {
   const pick = (c) => { o.color = c; drawOptsRef(); };
-  const pop = el('div', { class: 'emoji-pop color-pop', role: 'dialog', 'aria-label': 'Pick a highlight colour', hidden: true },
-    COLORS.map((c) => el('button', { type: 'button', class: 'swatch hl-' + c, 'aria-label': c, onclick: () => pick(c) })),
-    el('button', { type: 'button', class: 'swatch none', 'aria-label': 'No colour', onclick: () => pick('') }, '✕'));
-  const btn = el('button', { type: 'button', class: 'small secondary ' + hlClass(o), title: 'Highlight colour', 'aria-label': 'Highlight colour',
+  const pop = el('div', { class: 'emoji-pop color-pop', role: 'dialog', 'aria-label': t('pickColor'), hidden: true },
+    COLORS.map((c) => el('button', { type: 'button', class: 'swatch hl-' + c, 'aria-label': t(c), onclick: () => pick(c) })),
+    el('button', { type: 'button', class: 'swatch none', 'aria-label': t('noColor'), onclick: () => pick('') }, '✕'));
+  const btn = el('button', { type: 'button', class: 'small secondary ' + hlClass(o), title: t('highlightColor'), 'aria-label': t('highlightColor'),
     onclick: () => { const open = pop.hidden; closeEmoji(); pop.hidden = !open; } }, '🎨');
   return el('span', { class: 'emoji-wrap' }, btn, pop);
 }
 
-function editView(p) {
-  const st = {
-    title: p ? p.title : '', description: p ? p.description : '', closed: p ? p.closed : false,
+function editView(p, prev) { // prev: state kept when the language is switched
+  const st = prev || {
+    title: p ? p.title : '', description: p ? p.description : '', closed: p ? p.closed : false, lang: p ? p.lang : '',
     options: p ? p.options.map((o) => ({ ...o })) : [],
     logoData: null, logoRemove: false, // pending logo change, sent after the hangout is saved
   };
+  useLang(st.lang);
+  document.title = t('adminTitle');
   const err = el('p', { class: 'error' });
 
   // --- month calendar: tap days to add options ---
@@ -138,32 +143,32 @@ function editView(p) {
     for (let i = 0; i < (month.getDay() + 6) % 7; i++) cells.push(el('span'));
     for (let d = 1; d <= new Date(y, m + 1, 0).getDate(); d++) {
       const key = ymd(new Date(y, m, d));
-      cells.push(el('button', { type: 'button', 'aria-label': key + (sel.has(key) ? ' (has entries, tap to add another)' : ''),
+      cells.push(el('button', { type: 'button', 'aria-label': key + (sel.has(key) ? t('hasEntries') : ''),
         class: 'day' + (sel.has(key) ? ' sel' : '') + (key === today ? ' today' : ''), onclick: () => addDay(key) }, String(d)));
     }
     const nav = (label, delta, text) => el('button', { type: 'button', class: 'secondary', 'aria-label': label,
       onclick: () => { month = new Date(y, m + delta, 1); drawCal(); } }, text);
     calBox.replaceChildren(
-      el('div', { class: 'cal-head' }, nav('Previous month', -1, '‹'),
-        el('strong', {}, month.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })), nav('Next month', 1, '›')),
-      el('div', { class: 'cal-grid' }, ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'].map((n) => el('span', { class: 'dow' }, n)), cells));
+      el('div', { class: 'cal-head' }, nav(t('prevMonth'), -1, '‹'),
+        el('strong', {}, month.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })), nav(t('nextMonth'), 1, '›')),
+      el('div', { class: 'cal-grid' }, [0, 1, 2, 3, 4, 5, 6].map((i) => el('span', { class: 'dow' }, new Date(2024, 0, 1 + i).toLocaleDateString(LANG, { weekday: 'short' }))), cells));
   };
 
   // --- selected options: add a time or note to each, or split a day into several slots ---
   const drawOpts = () => optBox.replaceChildren(...(st.options.length ? st.options.map((o, i) => {
-    const note = el('input', { placeholder: 'Time / note (e.g. 18:00)', maxlength: 60, value: o.note, 'aria-label': 'Time or note', oninput: (e) => { o.note = e.target.value; } });
+    const note = el('input', { placeholder: t('notePlaceholder'), maxlength: 60, value: o.note, 'aria-label': t('noteLabel'), oninput: (e) => { o.note = e.target.value; } });
     return el('div', { class: 'row opt-row ' + hlClass(o) },
-    el('span', { class: 'opt-date' }, o.date ? optionLabel({ date: o.date }) : 'Text only'),
+    el('span', { class: 'opt-date' }, o.date ? optionLabel({ date: o.date }) : t('textOnly')),
     note, emojiPicker(note), colorPicker(o),
     o.date ? null : el('span', { class: 'move' },
-      el('button', { type: 'button', class: 'small secondary', 'aria-label': 'Move up', title: 'Move up', disabled: i === 0, onclick: () => moveOpt(i, -1) }, '↑'),
-      el('button', { type: 'button', class: 'small secondary', 'aria-label': 'Move down', title: 'Move down', disabled: i === st.options.length - 1, onclick: () => moveOpt(i, 1) }, '↓')),
-    o.date ? el('button', { type: 'button', class: 'small secondary', 'aria-label': 'Add another time on this day',
+      el('button', { type: 'button', class: 'small secondary', 'aria-label': t('moveUp'), title: t('moveUp'), disabled: i === 0, onclick: () => moveOpt(i, -1) }, '↑'),
+      el('button', { type: 'button', class: 'small secondary', 'aria-label': t('moveDown'), title: t('moveDown'), disabled: i === st.options.length - 1, onclick: () => moveOpt(i, 1) }, '↓')),
+    o.date ? el('button', { type: 'button', class: 'small secondary', 'aria-label': t('addTime'),
       onclick: () => { st.options.splice(i + 1, 0, { date: o.date, note: '' }); drawOpts(); } }, '+') : null,
-    el('button', { type: 'button', class: 'small secondary', 'aria-label': 'Remove option',
+    el('button', { type: 'button', class: 'small secondary', 'aria-label': t('removeOption'),
       onclick: () => { st.options.splice(i, 1); drawCal(); drawOpts(); } }, '✕'));
   })
-    : [el('p', { class: 'muted' }, 'Tap days in the calendar to add them.')]));
+    : [el('p', { class: 'muted' }, t('tapDays'))]));
   drawOptsRef = drawOpts;
   drawCal(); drawOpts();
 
@@ -176,21 +181,21 @@ function editView(p) {
       e.target.value = '';
       if (!f) return;
       try { st.logoData = await scaleLogo(f); st.logoRemove = false; err.textContent = ''; drawLogo(); }
-      catch (x) { err.textContent = x.logoMsg || 'Could not read that image'; }
+      catch (x) { err.textContent = x.logoMsg || t('imageError'); }
     } });
     logoBox.replaceChildren(
-      el('label', {}, 'Logo'),
-      cur ? el('img', { class: 'logo', src: cur, alt: 'Hangout logo' }) : el('p', { class: 'muted' }, 'No logo. It is shown at the top of this hangout.'),
+      el('label', {}, t('logo')),
+      cur ? el('img', { class: 'logo', src: cur, alt: t('hangoutLogo') }) : el('p', { class: 'muted' }, t('noLogo')),
       file,
       el('div', { class: 'row' },
-        el('button', { type: 'button', class: 'small secondary', onclick: () => file.click() }, cur ? 'Change logo' : 'Upload logo'),
-        cur ? el('button', { type: 'button', class: 'small danger', onclick: () => { st.logoData = null; st.logoRemove = true; drawLogo(); } }, 'Remove') : null));
+        el('button', { type: 'button', class: 'small secondary', onclick: () => file.click() }, cur ? t('changeLogo') : t('uploadLogo')),
+        cur ? el('button', { type: 'button', class: 'small danger', onclick: () => { st.logoData = null; st.logoRemove = true; drawLogo(); } }, t('remove')) : null));
   };
   drawLogo();
 
   const save = async () => {
     try {
-      const body = { title: st.title, description: st.description, closed: st.closed, options: st.options.filter((o) => o.date || o.note.trim()) };
+      const body = { title: st.title, description: st.description, closed: st.closed, lang: st.lang, options: st.options.filter((o) => o.date || o.note.trim()) };
       const saved = p ? await api('PUT', '/api/admin/hangouts/' + p.id, body) : await api('POST', '/api/admin/hangouts', body);
       if (st.logoData) await api('PUT', `/api/admin/hangouts/${saved.id}/logo`, { image: st.logoData });
       else if (st.logoRemove && p && p.logo) await api('DELETE', `/api/admin/hangouts/${saved.id}/logo`);
@@ -198,30 +203,34 @@ function editView(p) {
     } catch (e) { err.textContent = e.message; }
   };
 
-  const votes = p && p.votes.length ? el('div', { class: 'card' }, el('h2', {}, 'Responses'),
+  const votes = p && p.votes.length ? el('div', { class: 'card' }, el('h2', {}, t('responses', p.votes.length)),
     p.votes.map((v) => el('div', { class: 'row spread' }, v.name,
       el('button', { class: 'small danger', onclick: async () => {
-        if (!confirm('Delete response from ' + v.name + '?')) return;
+        if (!confirm(t('deleteResponse', v.name))) return;
         p = await api('DELETE', `/api/admin/hangouts/${p.id}/votes/${v.id}`); editView(p);
-      } }, 'Delete')))) : null;
+      } }, t('delete'))))) : null;
 
   show(
-    el('h1', {}, p ? 'Edit hangout' : 'New hangout'),
+    el('h1', {}, p ? t('editHangout') : t('newHangout')),
     el('div', { class: 'card' },
-      el('label', {}, 'Title'), el('input', { maxlength: 120, value: st.title, oninput: (e) => { st.title = e.target.value; } }),
-      el('label', {}, 'Description'), el('textarea', { rows: 3, maxlength: 1000, oninput: (e) => { st.description = e.target.value; } }, st.description),
+      el('label', {}, t('language')),
+      el('select', { onchange: (e) => { st.lang = e.target.value; editView(p, st); } },
+        el('option', { value: '', selected: st.lang === '' }, t('auto')),
+        Object.entries(LANGS).map(([k, n]) => el('option', { value: k, selected: st.lang === k }, n))),
+      el('label', {}, t('title')), el('input', { maxlength: 120, value: st.title, oninput: (e) => { st.title = e.target.value; } }),
+      el('label', {}, t('description')), el('textarea', { rows: 3, maxlength: 1000, oninput: (e) => { st.description = e.target.value; } }, st.description),
       logoBox,
-      el('label', {}, 'Dates'), calBox, optBox,
-      el('button', { type: 'button', class: 'secondary small', onclick: () => { st.options.push({ date: '', note: '' }); drawOpts(); } }, '+ Add text-only option'),
-      p ? el('label', {}, el('input', { type: 'checkbox', style: 'width:auto', checked: st.closed, onchange: (e) => { st.closed = e.target.checked; } }), ' Closed (no new responses)') : null,
+      el('label', {}, t('dates')), calBox, optBox,
+      el('button', { type: 'button', class: 'secondary small', onclick: () => { st.options.push({ date: '', note: '' }); drawOpts(); } }, t('addTextOption')),
+      p ? el('label', {}, el('input', { type: 'checkbox', style: 'width:auto', checked: st.closed, onchange: (e) => { st.closed = e.target.checked; } }), t('closedCheck')) : null,
       err,
       el('div', { class: 'row' },
-        el('button', { onclick: save }, 'Save'),
-        el('button', { class: 'secondary', onclick: load }, 'Cancel'),
+        el('button', { onclick: save }, t('save')),
+        el('button', { class: 'secondary', onclick: load }, t('cancel')),
         p ? el('button', { class: 'danger', onclick: async () => {
-          if (!confirm('Delete this hangout and all responses?')) return;
+          if (!confirm(t('confirmDelete'))) return;
           await api('DELETE', '/api/admin/hangouts/' + p.id); load();
-        } }, 'Delete hangout') : null)),
+        } }, t('deleteHangout')) : null)),
     votes);
 }
 

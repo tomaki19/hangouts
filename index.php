@@ -141,10 +141,12 @@ function cleanOptions($input, array $existing = []): array {
     }
     return $out;
 }
+const LANGS = ['en', 'de', 'fr']; // keep in sync with LANGS in common.js
+function cleanLang($v): string { return is_string($v) && in_array($v, LANGS, true) ? $v : ''; } // '' = follow the visitor's browser
 function publicHangout(array $p): array {
     return [
         'id' => $p['id'], 'title' => $p['title'], 'description' => $p['description'],
-        'options' => array_values($p['options']), 'closed' => !empty($p['closed']), 'logo' => logoUrl($p['id']),
+        'options' => array_values($p['options']), 'closed' => !empty($p['closed']), 'lang' => cleanLang($p['lang'] ?? ''), 'logo' => logoUrl($p['id']),
         'votes' => array_map(fn($v) => ['id' => $v['id'], 'name' => $v['name'], 'answers' => (object)$v['answers']], array_values($p['votes'])),
     ];
 }
@@ -281,7 +283,7 @@ function api(array $parts, string $method): void {
             if ($title === '') throw new HttpError(400, 'Title required');
             $p = [
                 'id' => rid(9), 'title' => $title, 'description' => str($body['description'] ?? '', 1000),
-                'options' => cleanOptions($body['options'] ?? null), 'votes' => [], 'closed' => false, 'created' => time(),
+                'options' => cleanOptions($body['options'] ?? null), 'votes' => [], 'closed' => false, 'created' => time(), 'lang' => cleanLang($body['lang'] ?? ''),
             ];
             withHangouts(function (array &$hangouts) use ($p) { $hangouts[$p['id']] = $p; });
             sendJson(201, publicHangout($p));
@@ -297,6 +299,7 @@ function api(array $parts, string $method): void {
                 $p['description'] = str($body['description'] ?? '', 1000);
                 $p['options'] = cleanOptions($body['options'] ?? null, $p['options']);
                 $p['closed'] = !empty($body['closed']);
+                $p['lang'] = cleanLang($body['lang'] ?? '');
                 $ids = array_column($p['options'], 'id');
                 foreach ($p['votes'] as &$v) {
                     $v['answers'] = array_intersect_key($v['answers'], array_flip($ids));

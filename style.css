@@ -27,8 +27,8 @@ main { max-width:960px; margin:0 auto; }
 h1 { font-size:1.6rem; margin:0 0 .25rem; } h2 { font-size:1.1rem; }
 .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:18px; margin:16px 0; }
 .muted { color:var(--muted); } .error { color:var(--no); min-height:1.4em; }
-input, textarea, button { font:inherit; color:inherit; }
-input, textarea { background:var(--bg); border:1px solid var(--line); border-radius:6px; padding:8px 10px; width:100%; }
+input, textarea, select, button { font:inherit; color:inherit; }
+input, textarea, select { background:var(--bg); border:1px solid var(--line); border-radius:6px; padding:8px 10px; width:100%; }
 button { background:var(--accent); color:var(--on-accent); border:0; border-radius:6px; padding:8px 14px; cursor:pointer; }
 button.secondary { background:transparent; color:var(--text); border:1px solid var(--line); }
 button.danger { background:var(--no); color:var(--on-solid); }
@@ -48,7 +48,7 @@ tfoot td { font-weight:600; }
 
 /* ---- touch / small screens ---- */
 html { -webkit-text-size-adjust: 100%; }
-input, textarea { font-size: 16px; } /* >=16px stops iOS zooming into fields */
+input, textarea, select { font-size: 16px; } /* >=16px stops iOS zooming into fields */
 button, input[type=date] { min-height: 44px; }
 button.small { min-height: 36px; padding: 6px 12px; }
 input[type=checkbox] { min-height: 0; width: 22px; height: 22px; vertical-align: middle; }

@@ -4,16 +4,17 @@
 <meta name="theme-color" content="#f5f6f8" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#12151c" media="(prefers-color-scheme: dark)">
 <meta name="robots" content="noindex"><title>Hangout</title><link rel="stylesheet" href="/style.css"></head>
-<body><main id="app"><p class="muted">Loading…</p></main>
+<body><main id="app"><p class="muted" id="loading"></p></main>
 <script>window.BASE = '__BASE__';</script>
 <script src="/common.js"></script>
 <script>
+document.getElementById('loading').textContent = t('loading');
 const id = location.pathname.split('/').pop();
 const storeKey = 'hangout:' + id;
 let hangout, mine = null, draft = null; // mine = {voteId} (just highlights my row); draft = {voteId|null, name, answers}
 try { mine = JSON.parse(localStorage.getItem(storeKey)); } catch {}
 
-const CHOICES = [['ok', 'Yes'], ['maybe', 'Maybe'], ['no', 'No']];
+let CHOICES;
 
 function startDraft(vote) {
   draft = { voteId: vote ? vote.id : null, name: vote ? vote.name : '', answers: {} };
@@ -33,6 +34,7 @@ function monthGroups(options) {
 }
 
 function render() {
+  CHOICES = [['ok', t('yes')], ['maybe', t('maybe')], ['no', t('no')]];
   const app = document.getElementById('app');
   app.replaceChildren();
   document.title = hangout.title + ' · Hangout';
@@ -52,24 +54,24 @@ function render() {
   const rows = hangout.votes.map((v) => {
     const isMine = myVote && v.id === myVote.id;
     return el('tr', { class: isMine ? 'mine' : '' },
-      el('td', {}, hangout.closed ? v.name : el('button', { class: 'name', title: 'Edit this response', onclick: () => { startDraft(v); render(); window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }); } }, v.name, ' ✎')),
+      el('td', {}, hangout.closed ? v.name : el('button', { class: 'name', title: t('editResponse'), onclick: () => { startDraft(v); render(); window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }); } }, v.name, ' ✎')),
       hangout.options.map((o) => { const a = v.answers[o.id] || 'no'; return el('td', { class: a + ' ' + hlClass(o) }, SYMBOL[a]); }));
   });
 
-  const foot = el('tr', {}, el('td', {}, 'Total ✓'),
+  const foot = el('tr', {}, el('td', {}, t('total')),
     hangout.options.map((o, i) => el('td', { class: (hangout.votes.length && totals[i] * 2 + maybes[i] === bestScore ? 'best ' : '') + hlClass(o) },
       String(totals[i]), maybes[i] ? el('span', { class: 'muted' }, ` (+${maybes[i]})`) : null)));
 
   app.append(el('div', { class: 'card' },
     el('div', { class: 'table-wrap' }, el('table', {}, el('thead', {}, monthRow, head), el('tbody', {}, rows), el('tfoot', {}, foot))),
-    hangout.closed ? el('p', { class: 'muted' }, 'This hangout is closed.') : null,
-    !hangout.closed && !draft ? el('p', {}, el('button', { class: 'icon add', title: 'Add my availability', 'aria-label': 'Add my availability', onclick: () => { startDraft(null); render(); window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }); } }, '+')) : null));
+    hangout.closed ? el('p', { class: 'muted' }, t('isClosed')) : null,
+    !hangout.closed && !draft ? el('p', {}, el('button', { class: 'icon add', title: t('addAvailability'), 'aria-label': t('addAvailability'), onclick: () => { startDraft(null); render(); window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }); } }, '+')) : null));
 
   if (draft) {
-    const nameInput = el('input', { placeholder: 'Your name', maxlength: 40, value: draft.name, 'aria-label': 'Your name',
+    const nameInput = el('input', { placeholder: t('yourName'), maxlength: 40, value: draft.name, 'aria-label': t('yourName'),
       autocomplete: 'name', oninput: (e) => { draft.name = e.target.value; } });
     app.append(el('div', { class: 'card' },
-      el('h2', {}, draft.voteId ? 'Edit ' + draft.name : 'Your availability'),
+      el('h2', {}, draft.voteId ? t('editName', draft.name) : t('yourAvailability')),
       nameInput,
       hangout.options.map((o, i) => {
         const group = el('div', { class: 'seg', role: 'group', 'aria-label': optionLabel(o, true) });
@@ -84,8 +86,8 @@ function render() {
       }),
       el('p', { id: 'err', class: 'error' }),
       el('div', { class: 'row' },
-        el('button', { onclick: submit }, 'Save'),
-        el('button', { class: 'secondary', onclick: () => { draft = null; render(); } }, 'Cancel'))));
+        el('button', { onclick: submit }, t('save')),
+        el('button', { class: 'secondary', onclick: () => { draft = null; render(); } }, t('cancel')))));
   }
 }
 
@@ -102,6 +104,6 @@ async function submit() {
   } catch (e) { document.getElementById('err').textContent = e.message; }
 }
 
-api('GET', '/api/hangouts/' + id).then((p) => { hangout = p; render(); })
-  .catch(() => { document.getElementById('app').replaceChildren(el('h1', {}, 'Hangout not found')); });
+api('GET', '/api/hangouts/' + id).then((p) => { hangout = p; useLang(p.lang); render(); })
+  .catch(() => { document.getElementById('app').replaceChildren(el('h1', {}, t('notFound'))); });
 </script></body></html>

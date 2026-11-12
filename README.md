@@ -6,6 +6,7 @@ Simple scheduling hangouts for shared PHP hosting. PHP backend, plain JavaScript
 - **Admin page** (password protected): create, edit, close and delete hangouts; delete individual responses.
 - **Calendar date picker**: tap days to add them as options; tap a day again to add another entry on the same day. Entries are removed with ✕. Add a time or note to each entry, with an emoji picker.
 - **Logo per hangout**: in the hangout editor the admin can upload an optional logo (PNG, JPEG, WebP, GIF or SVG; rasters are scaled down in the browser; SVGs are sanitised on the server (UTF-8 only, no DOCTYPE/entities, only plain SVG elements; scripts, event handlers and external references are stripped); stored as `data/logos/<hangout>.dat`). It is shown at the top of that hangout's page and removed together with the hangout.
+- **Multilingual** (English, German, French): each hangout has a language setting in its editor, which forces that language for the hangout page and its editor in every browser. "Automatic" follows the visitor's browser language. The admin list and login follow the browser. Translations live in `common.js` (`STRINGS`).
 - **Public hangout link** with an unguessable id: anyone can add a response (Yes / Maybe / No per option). The table shows everyone's answers, with totals per option.
 - **Anyone with the link can edit any response** by clicking the name (like Doodle/Framadate). Only the admin can delete responses. Closed hangouts are read-only.
 - Mobile friendly: large touch targets, stacked editor rows on small screens.
