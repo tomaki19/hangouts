@@ -128,3 +128,8 @@ button.hl { border: 2px solid var(--hl); }
 
 /* ---- logo ---- */
 .logo { display: block; max-width: 100%; max-height: 80px; width: auto; height: auto; margin: 0 0 12px; }
+
+/* ---- move text-only entries up/down ---- */
+.move { display: flex; gap: 4px; }
+.move button:disabled { opacity: .35; cursor: default; }
+@media (max-width: 600px) { .move button { flex: 1; } }

@@ -116,7 +116,18 @@ function editView(p) {
   const calBox = el('div', { class: 'cal' });
   const optBox = el('div');
 
-  const sortOpts = () => st.options.sort((x, y) => (x.date || '9999') < (y.date || '9999') ? -1 : (x.date || '9999') > (y.date || '9999') ? 1 : 0);
+  // dated entries are kept in date order; text-only entries stay where the admin put them (see ↑ ↓)
+  const sortOpts = () => {
+    const dated = st.options.filter((o) => o.date).sort((x, y) => (x.date < y.date ? -1 : x.date > y.date ? 1 : 0));
+    let k = 0;
+    st.options = st.options.map((o) => (o.date ? dated[k++] : o));
+  };
+  const moveOpt = (i, by) => {
+    const j = i + by;
+    if (j < 0 || j >= st.options.length) return;
+    [st.options[i], st.options[j]] = [st.options[j], st.options[i]];
+    drawOpts();
+  };
   // the calendar only adds (tap a day again for another entry on it); entries are removed with ✕
   const addDay = (key) => { st.options.push({ date: key, note: '' }); sortOpts(); drawCal(); drawOpts(); };
   const drawCal = () => {
@@ -144,6 +155,9 @@ function editView(p) {
     return el('div', { class: 'row opt-row ' + hlClass(o) },
     el('span', { class: 'opt-date' }, o.date ? optionLabel({ date: o.date }) : 'Text only'),
     note, emojiPicker(note), colorPicker(o),
+    o.date ? null : el('span', { class: 'move' },
+      el('button', { type: 'button', class: 'small secondary', 'aria-label': 'Move up', title: 'Move up', disabled: i === 0, onclick: () => moveOpt(i, -1) }, '↑'),
+      el('button', { type: 'button', class: 'small secondary', 'aria-label': 'Move down', title: 'Move down', disabled: i === st.options.length - 1, onclick: () => moveOpt(i, 1) }, '↓')),
     o.date ? el('button', { type: 'button', class: 'small secondary', 'aria-label': 'Add another time on this day',
       onclick: () => { st.options.splice(i + 1, 0, { date: o.date, note: '' }); drawOpts(); } }, '+') : null,
     el('button', { type: 'button', class: 'small secondary', 'aria-label': 'Remove option',
