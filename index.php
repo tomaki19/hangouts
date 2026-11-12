@@ -81,12 +81,16 @@ function withHangouts(callable $fn) { global $DATA_DIR; return locked($DATA_DIR 
 // Sessions are random tokens; only their SHA-256 is stored server-side, so neither the config
 // nor the data files contain anything that can be used to log in or forge a cookie.
 function sessionStore(callable $fn) { global $DATA_DIR; return locked($DATA_DIR . '/sessions.json', $fn); }
-function newSession(): string {
+// A session is {exp, scope}: scope '*' is the global admin, anything else is a single hangout's id.
+// (Older sessions.json entries are plain expiry timestamps and count as global.)
+function sessExp($v): int { return is_array($v) ? (int)($v['exp'] ?? 0) : (int)$v; }
+function sessScope($v): string { return is_array($v) ? (string)($v['scope'] ?? '') : '*'; }
+function newSession(string $scope = '*'): string {
     $token = rid(32);
     $h = hash('sha256', $token);
-    sessionStore(function (array &$sessions) use ($h) {
-        foreach ($sessions as $k => $exp) if ($exp <= time()) unset($sessions[$k]);
-        $sessions[$h] = time() + SESSION_TTL;
+    sessionStore(function (array &$sessions) use ($h, $scope) {
+        foreach ($sessions as $k => $v) if (sessExp($v) <= time()) unset($sessions[$k]);
+        $sessions[$h] = ['exp' => time() + SESSION_TTL, 'scope' => $scope];
     });
     return $token;
 }
@@ -98,11 +102,18 @@ function endSession(): void {
     $h = hash('sha256', $t);
     sessionStore(function (array &$sessions) use ($h) { unset($sessions[$h]); });
 }
-function isAdmin(): bool {
+// Scope of the current session ('*' or a hangout id), or null when not logged in.
+function sessionScope(): ?string {
     $t = $_COOKIE[cookieName()] ?? '';
-    if (!is_string($t) || $t === '') return false;
+    if (!is_string($t) || $t === '') return null;
     $h = hash('sha256', $t);
-    return sessionStore(fn(array &$sessions) => isset($sessions[$h]) && $sessions[$h] > time());
+    return sessionStore(fn(array &$sessions) => isset($sessions[$h]) && sessExp($sessions[$h]) > time() ? sessScope($sessions[$h]) : null);
+}
+// $hid null: global admin only. Otherwise the global admin or that hangout's own admin.
+function requireAdmin(?string $hid = null): void {
+    $scope = sessionScope();
+    if ($scope === null) throw new HttpError(401, 'Login required');
+    if ($scope !== '*' && $scope !== $hid) throw new HttpError(403, 'Not allowed');
 }
 function setSession(?string $value): void {
     global $INSECURE_COOKIE;
@@ -149,6 +160,23 @@ function publicHangout(array $p): array {
         'options' => array_values($p['options']), 'closed' => !empty($p['closed']), 'lang' => cleanLang($p['lang'] ?? ''), 'logo' => logoUrl($p['id']),
         'votes' => array_map(fn($v) => ['id' => $v['id'], 'name' => $v['name'], 'answers' => (object)$v['answers']], array_values($p['votes'])),
     ];
+}
+
+// admin responses additionally say whether a per-hangout admin password is set (never the hash itself)
+function adminHangout(array $p): array {
+    static $global = null; // is the current session the global admin?
+    if ($global === null) $global = sessionScope() === '*';
+    return publicHangout($p) + ['hasAdminPassword' => !empty($p['admin_hash']), 'global' => $global];
+}
+// body.adminPassword (non-empty) sets the per-hangout admin password; body.clearAdminPassword removes it; otherwise unchanged
+function setAdminPassword(array &$p, array $body): void {
+    if (is_string($body['adminPassword'] ?? null) && $body['adminPassword'] !== '') {
+        if (mb_strlen($body['adminPassword']) < 8) throw new HttpError(400, 'Password must be at least 8 characters');
+        $algo = defined('PASSWORD_ARGON2ID') ? PASSWORD_ARGON2ID : PASSWORD_BCRYPT;
+        $p['admin_hash'] = password_hash($body['adminPassword'], $algo);
+    } elseif (!empty($body['clearAdminPassword'])) {
+        unset($p['admin_hash']);
+    }
 }
 
 // ---------- API ----------
@@ -248,18 +276,25 @@ function api(array $parts, string $method): void {
     if ($a === 'login' && $method === 'POST') {
         if (loginThrottle($ip, false)) throw new HttpError(429, 'Too many attempts, try later');
         $body = readJson();
-        if (!is_string($body['password'] ?? null) || !password_verify($body['password'], $ADMIN_HASH)) {
+        $scope = '*';
+        $hash = $ADMIN_HASH;
+        if (isset($body['hangout'])) { // per-hangout admin: the hangout's own password
+            $scope = is_string($body['hangout']) ? $body['hangout'] : '';
+            $h = withHangouts(fn(array &$hangouts) => $hangouts[$scope] ?? null);
+            $hash = $h ? (string)($h['admin_hash'] ?? '') : '';
+        }
+        if (!is_string($body['password'] ?? null) || $hash === '' || !password_verify($body['password'], $hash)) {
             loginThrottle($ip, true);
             throw new HttpError(401, 'Wrong password');
         }
-        setSession(newSession());
+        setSession(newSession($scope));
         sendJson(200, ['ok' => true]);
     }
     if ($a === 'logout' && $method === 'POST') { endSession(); setSession(null); sendJson(200, ['ok' => true]); }
 
     if ($a === 'admin') {
-        if (!isAdmin()) throw new HttpError(401, 'Login required');
         if ($b !== 'hangouts') throw new HttpError(404, 'Not found');
+        requireAdmin($c); // list/create ($c null) are global-admin only
 
         if ($c !== null && $d === 'logo' && ($method === 'PUT' || $method === 'DELETE')) {
             if (!withHangouts(fn(array &$hangouts) => isset($hangouts[$c]))) throw new HttpError(404, 'No such hangout');
@@ -272,10 +307,15 @@ function api(array $parts, string $method): void {
             sendJson(200, ['logo' => logoUrl($c)]);
         }
 
+        if ($c !== null && $d === null && $method === 'GET') {
+            $p = withHangouts(fn(array &$hangouts) => $hangouts[$c] ?? null);
+            if (!$p) throw new HttpError(404, 'No such hangout');
+            sendJson(200, adminHangout($p));
+        }
         if ($c === null && $method === 'GET') {
             $list = withHangouts(fn(array &$hangouts) => array_values($hangouts));
             usort($list, fn($x, $y) => $y['created'] <=> $x['created']);
-            sendJson(200, array_map('publicHangout', $list));
+            sendJson(200, array_map('adminHangout', $list));
         }
         if ($c === null && $method === 'POST') {
             $body = readJson();
@@ -285,8 +325,9 @@ function api(array $parts, string $method): void {
                 'id' => rid(9), 'title' => $title, 'description' => str($body['description'] ?? '', 1000),
                 'options' => cleanOptions($body['options'] ?? null), 'votes' => [], 'closed' => false, 'created' => time(), 'lang' => cleanLang($body['lang'] ?? ''),
             ];
+            setAdminPassword($p, $body);
             withHangouts(function (array &$hangouts) use ($p) { $hangouts[$p['id']] = $p; });
-            sendJson(201, publicHangout($p));
+            sendJson(201, adminHangout($p));
         }
         if ($c !== null && $d === null && $method === 'PUT') {
             $body = readJson();
@@ -300,15 +341,17 @@ function api(array $parts, string $method): void {
                 $p['options'] = cleanOptions($body['options'] ?? null, $p['options']);
                 $p['closed'] = !empty($body['closed']);
                 $p['lang'] = cleanLang($body['lang'] ?? '');
+                setAdminPassword($p, $body);
                 $ids = array_column($p['options'], 'id');
                 foreach ($p['votes'] as &$v) {
                     $v['answers'] = array_intersect_key($v['answers'], array_flip($ids));
                 }
                 return $p;
             });
-            sendJson(200, publicHangout($p));
+            sendJson(200, adminHangout($p));
         }
         if ($c !== null && $d === null && $method === 'DELETE') {
+            requireAdmin(null);
             $found = withHangouts(function (array &$hangouts) use ($c) { $f = isset($hangouts[$c]); unset($hangouts[$c]); return $f; });
             if (!$found) throw new HttpError(404, 'No such hangout');
             if (is_file(logoFile($c))) unlink(logoFile($c));
@@ -321,7 +364,7 @@ function api(array $parts, string $method): void {
                 $hangouts[$c]['votes'] = array_values(array_filter($hangouts[$c]['votes'], fn($v) => $v['id'] !== $vid));
                 return $hangouts[$c];
             });
-            sendJson(200, publicHangout($p));
+            sendJson(200, adminHangout($p));
         }
         throw new HttpError(404, 'Not found');
     }
@@ -389,7 +432,7 @@ try {
     if ($isApi) api(array_slice(explode('/', trim($path, '/')), 1), $method);
     if ($method !== 'GET' && $method !== 'HEAD') throw new HttpError(405, 'Method not allowed');
     if ($path === '/') page('index.html');
-    if ($path === '/admin') page('admin.html');
+    if ($path === '/admin' || preg_match('#^/admin/[\w-]+$#', $path)) page('admin.html');
     if (preg_match('#^/p/[\w-]+$#', $path)) page('hangout.html');
     throw new HttpError(404, 'Not found');
 } catch (HttpError $e) {

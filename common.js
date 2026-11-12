@@ -6,6 +6,9 @@ const BASE = window.BASE || ''; // '/index.php' when the server has no rewrite r
 const LANGS = { en: 'English', de: 'Deutsch', fr: 'Français' };
 const STRINGS = {
   en: {
+    userLink: 'Hangout link', adminLink: 'Admin link',
+    settings: 'Settings',
+    hangoutAdminPassword: 'Password', keepPassword: 'Password is set', noPassword: 'No password set', removePassword: ' Remove password (disables the hangout admin login)', saved: 'Saved',
     adminTitle: 'Hangout admin', adminPassword: 'Admin password', logIn: 'Log in', logOut: 'Log out',
     yourHangouts: 'Your hangouts', newHangout: 'New hangout', noHangouts: 'No hangouts yet.', closedSuffix: ' (closed)',
     responses: '{0} responses', copyLink: 'Copy link', copied: 'Copied', edit: 'Edit', editHangout: 'Edit hangout',
@@ -18,12 +21,15 @@ const STRINGS = {
     deleteResponse: 'Delete response from {0}?', delete: 'Delete', title: 'Title', description: 'Description', dates: 'Dates',
     addTextOption: '+ Add text-only option', closedCheck: ' Closed (no new responses)', save: 'Save', cancel: 'Cancel',
     confirmDelete: 'Delete this hangout and all responses?', deleteHangout: 'Delete hangout', language: 'Language', auto: 'Automatic (browser)',
-    loading: 'Loading…', editResponse: 'Edit this response', total: 'Total ✓', isClosed: 'This hangout is closed.', addAvailability: 'Add my availability',
+    loading: 'Loading…', editResponse: 'Edit this response', total: 'Total', isClosed: 'This hangout is closed.', addAvailability: 'Add my availability',
     yourName: 'Your name', editName: 'Edit {0}', yourAvailability: 'Your availability', yes: 'Yes', maybe: 'Maybe', no: 'No', notFound: 'Hangout not found',
     openLink: 'Open the hangout link you were given to respond.',
     red: 'red', orange: 'orange', yellow: 'yellow', lime: 'lime', green: 'green', teal: 'teal', cyan: 'cyan', blue: 'blue', purple: 'purple', pink: 'pink', brown: 'brown', gray: 'gray',
   },
   de: {
+    userLink: 'Hangout-Link', adminLink: 'Admin-Link',
+    settings: 'Einstellungen',
+    hangoutAdminPassword: 'Passwort', keepPassword: 'Passwort ist gesetzt', noPassword: 'Kein Passwort gesetzt', removePassword: ' Passwort entfernen (deaktiviert den Hangout-Admin-Login)', saved: 'Gespeichert',
     adminTitle: 'Hangout-Verwaltung', adminPassword: 'Admin-Passwort', logIn: 'Anmelden', logOut: 'Abmelden',
     yourHangouts: 'Deine Hangouts', newHangout: 'Neuer Hangout', noHangouts: 'Noch keine Hangouts.', closedSuffix: ' (geschlossen)',
     responses: '{0} Antworten', copyLink: 'Link kopieren', copied: 'Kopiert', edit: 'Bearbeiten', editHangout: 'Hangout bearbeiten',
@@ -36,12 +42,15 @@ const STRINGS = {
     deleteResponse: 'Antwort von {0} löschen?', delete: 'Löschen', title: 'Titel', description: 'Beschreibung', dates: 'Daten',
     addTextOption: '+ Nur-Text-Option hinzufügen', closedCheck: ' Geschlossen (keine neuen Antworten)', save: 'Speichern', cancel: 'Abbrechen',
     confirmDelete: 'Diesen Hangout und alle Antworten löschen?', deleteHangout: 'Hangout löschen', language: 'Sprache', auto: 'Automatisch (Browser)',
-    loading: 'Lädt…', editResponse: 'Diese Antwort bearbeiten', total: 'Total ✓', isClosed: 'Dieser Hangout ist geschlossen.', addAvailability: 'Meine Verfügbarkeit hinzufügen',
+    loading: 'Lädt…', editResponse: 'Diese Antwort bearbeiten', total: 'Total', isClosed: 'Dieser Hangout ist geschlossen.', addAvailability: 'Meine Verfügbarkeit hinzufügen',
     yourName: 'Dein Name', editName: '{0} bearbeiten', yourAvailability: 'Deine Verfügbarkeit', yes: 'Ja', maybe: 'Vielleicht', no: 'Nein', notFound: 'Hangout nicht gefunden',
     openLink: 'Öffne den Hangout-Link, den du erhalten hast, um zu antworten.',
     red: 'rot', orange: 'orange', yellow: 'gelb', lime: 'limette', green: 'grün', teal: 'petrol', cyan: 'cyan', blue: 'blau', purple: 'violett', pink: 'pink', brown: 'braun', gray: 'grau',
   },
   fr: {
+    userLink: 'Lien du hangout', adminLink: 'Lien admin',
+    settings: 'Paramètres',
+    hangoutAdminPassword: 'Mot de passe', keepPassword: 'Mot de passe défini', noPassword: 'Aucun mot de passe défini', removePassword: ' Supprimer le mot de passe (désactive la connexion admin du hangout)', saved: 'Enregistré',
     adminTitle: 'Administration Hangout', adminPassword: 'Mot de passe admin', logIn: 'Se connecter', logOut: 'Se déconnecter',
     yourHangouts: 'Vos hangouts', newHangout: 'Nouveau hangout', noHangouts: 'Aucun hangout pour l’instant.', closedSuffix: ' (fermé)',
     responses: '{0} réponses', copyLink: 'Copier le lien', copied: 'Copié', edit: 'Modifier', editHangout: 'Modifier le hangout',
@@ -54,7 +63,7 @@ const STRINGS = {
     deleteResponse: 'Supprimer la réponse de {0} ?', delete: 'Supprimer', title: 'Titre', description: 'Description', dates: 'Dates',
     addTextOption: '+ Ajouter une option texte', closedCheck: ' Fermé (plus de nouvelles réponses)', save: 'Enregistrer', cancel: 'Annuler',
     confirmDelete: 'Supprimer ce hangout et toutes les réponses ?', deleteHangout: 'Supprimer le hangout', language: 'Langue', auto: 'Automatique (navigateur)',
-    loading: 'Chargement…', editResponse: 'Modifier cette réponse', total: 'Total ✓', isClosed: 'Ce hangout est fermé.', addAvailability: 'Ajouter ma disponibilité',
+    loading: 'Chargement…', editResponse: 'Modifier cette réponse', total: 'Total', isClosed: 'Ce hangout est fermé.', addAvailability: 'Ajouter ma disponibilité',
     yourName: 'Votre nom', editName: 'Modifier {0}', yourAvailability: 'Votre disponibilité', yes: 'Oui', maybe: 'Peut-être', no: 'Non', notFound: 'Hangout introuvable',
     openLink: 'Ouvrez le lien du hangout que vous avez reçu pour répondre.',
     red: 'rouge', orange: 'orange', yellow: 'jaune', lime: 'citron vert', green: 'vert', teal: 'sarcelle', cyan: 'cyan', blue: 'bleu', purple: 'violet', pink: 'rose', brown: 'brun', gray: 'gris',
@@ -130,3 +139,4 @@ const hlClass = (o) => (COLORS.includes(o.color) ? 'hl hl-' + o.color : '');
 
 const SYMBOL = { ok: '✓', maybe: '(✓)', no: '✗' };
 const hangoutUrl = (id) => location.origin + BASE + '/p/' + id;
+const adminUrl = (id) => location.origin + BASE + '/admin/' + id;

@@ -9,18 +9,42 @@
 <script src="/common.js"></script>
 <script>
 const app = document.getElementById('app');
+// /admin = global admin; /admin/<id> = that hangout's own admin (HID set)
+const HID = (() => { const seg = location.pathname.split('/').filter(Boolean); const i = seg.indexOf('admin'); return i >= 0 && seg[i + 1] ? decodeURIComponent(seg[i + 1]) : ''; })();
+let savedNote = false; // single-hangout mode: show "Saved" after a save
 let hangouts = [];
 let drawOptsRef = () => {}; // set by editView so colorPicker can redraw the entry list
 // replaceChildren() would stringify null and arrays, so flatten and skip them
 const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const show = (...kids) => app.replaceChildren(...kids.flat().filter((k) => k != null));
 
+// line icons drawn in currentColor so they follow the theme
+const svgIcon = (paths) => `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:middle">${paths}</svg>`;
+const ICONS = {
+  logout: svgIcon('<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>'),
+  copy: svgIcon('<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>'),
+  check: svgIcon('<polyline points="20 6 9 17 4 12"/>'),
+};
+
+function logoutButton() {
+  const b = el('button', { class: 'secondary', title: t('logOut'), 'aria-label': t('logOut'), onclick: async () => { await api('POST', '/api/logout'); loginView(); } });
+  b.innerHTML = ICONS.logout;
+  return b;
+}
+
+function copyButton(url) {
+  const b = el('button', { class: 'small secondary', title: t('copyLink'), 'aria-label': t('copyLink'),
+    onclick: () => { navigator.clipboard.writeText(url); b.innerHTML = ICONS.check; b.title = t('copied'); setTimeout(() => { b.innerHTML = ICONS.copy; b.title = t('copyLink'); }, 1500); } });
+  b.innerHTML = ICONS.copy;
+  return b;
+}
+
 function loginView() {
   useLang('');
   const pw = el('input', { type: 'password', placeholder: t('adminPassword'), autocomplete: 'current-password', 'aria-label': t('adminPassword') });
   const err = el('p', { class: 'error' });
   const go = async () => {
-    try { await api('POST', '/api/login', { password: pw.value }); await load(); }
+    try { await api('POST', '/api/login', HID ? { password: pw.value, hangout: HID } : { password: pw.value }); await load(); }
     catch (e) { err.textContent = e.message; }
   };
   pw.addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); });
@@ -31,8 +55,10 @@ function loginView() {
 
 async function load() {
   useLang(''); // list and login follow the browser; a hangout's editor uses that hangout's language
-  try { hangouts = await api('GET', '/api/admin/hangouts'); listView(); }
-  catch (e) { if (e.status === 401) loginView(); else app.textContent = e.message; }
+  try {
+    if (HID) editView(await api('GET', '/api/admin/hangouts/' + encodeURIComponent(HID)));
+    else { hangouts = await api('GET', '/api/admin/hangouts'); listView(); }
+  } catch (e) { if (e.status === 401 || e.status === 403) loginView(); else app.textContent = e.message; }
 }
 
 // Raster images are scaled to fit 600x200 in the browser (keeps transparency) and returned as a data URL; SVG is passed through
@@ -60,18 +86,16 @@ function listView() {
   document.title = t('adminTitle');
   show(
     el('div', { class: 'row spread' }, el('h1', {}, t('yourHangouts')),
-      el('div', { class: 'row' },
-        el('button', { onclick: () => editView(null) }, t('newHangout')),
-        el('button', { class: 'secondary', onclick: async () => { await api('POST', '/api/logout'); loginView(); } }, t('logOut')))),
+      logoutButton()),
     hangouts.length ? null : el('p', { class: 'muted' }, t('noHangouts')),
     hangouts.map((p) => el('div', { class: 'card' },
       el('div', { class: 'row spread' },
         el('strong', {}, p.title, p.closed ? t('closedSuffix') : ''),
         el('span', { class: 'muted' }, t('responses', p.votes.length))),
-      el('p', { class: 'link' }, el('a', { href: hangoutUrl(p.id), target: '_blank', rel: 'noopener' }, hangoutUrl(p.id))),
-      el('div', { class: 'row' },
-        el('button', { class: 'small', onclick: (e) => { navigator.clipboard.writeText(hangoutUrl(p.id)); e.target.textContent = t('copied'); } }, t('copyLink')),
-        el('button', { class: 'small secondary', onclick: () => editView(p) }, t('edit'))))));
+      el('div', { class: 'link-group' }, [adminUrl(p.id), hangoutUrl(p.id)].map((url, i) => el('div', { class: 'link-row' },
+        el('span', { class: 'link' }, el('a', { href: url, target: '_blank', rel: 'noopener' }, url)),
+        copyButton(url)))))),
+    el('p', {}, el('button', { title: t('newHangout'), 'aria-label': t('newHangout'), onclick: () => editView(null) }, '+')));
 }
 
 const EMOJIS = ['🎉','🥳','🎂','🍕','🍔','🍝','🍣','🥗','🍻','🍷','☕','🍰','🎬','🎮','🎲','🎵','🎤','📚','⚽','🏀','🎾','🏐','🏊','🚴','🏃','🥾','⛷️','🏔️','🏖️','🌞','⛅','🌧️','❄️','🌙','🌅','🔥','⭐','❤️','👍','👋','🙂','😎','🤝','🏠','🏢','🏫','🚗','🚆','✈️','🛒','💼','🧑‍🍳','🧹','🔧','🎁','📍','⏰','📅','✅','❓'];
@@ -106,13 +130,14 @@ function colorPicker(o) {
 
 function editView(p, prev) { // prev: state kept when the language is switched
   const st = prev || {
-    title: p ? p.title : '', description: p ? p.description : '', closed: p ? p.closed : false, lang: p ? p.lang : '',
+    title: p ? p.title : '', description: p ? p.description : '', closed: p ? p.closed : false, lang: p ? p.lang : '', adminPassword: '', clearPassword: false,
     options: p ? p.options.map((o) => ({ ...o })) : [],
     logoData: null, logoRemove: false, // pending logo change, sent after the hangout is saved
   };
   useLang(st.lang);
   document.title = t('adminTitle');
   const err = el('p', { class: 'error' });
+  const saved = savedNote; savedNote = false;
 
   // --- month calendar: tap days to add options ---
   const first = st.options.find((o) => o.date);
@@ -195,10 +220,11 @@ function editView(p, prev) { // prev: state kept when the language is switched
 
   const save = async () => {
     try {
-      const body = { title: st.title, description: st.description, closed: st.closed, lang: st.lang, options: st.options.filter((o) => o.date || o.note.trim()) };
+      const body = { title: st.title, description: st.description, closed: st.closed, lang: st.lang, adminPassword: st.adminPassword, clearAdminPassword: st.clearPassword, options: st.options.filter((o) => o.date || o.note.trim()) };
       const saved = p ? await api('PUT', '/api/admin/hangouts/' + p.id, body) : await api('POST', '/api/admin/hangouts', body);
       if (st.logoData) await api('PUT', `/api/admin/hangouts/${saved.id}/logo`, { image: st.logoData });
       else if (st.logoRemove && p && p.logo) await api('DELETE', `/api/admin/hangouts/${saved.id}/logo`);
+      savedNote = true;
       await load();
     } catch (e) { err.textContent = e.message; }
   };
@@ -211,12 +237,21 @@ function editView(p, prev) { // prev: state kept when the language is switched
       } }, t('delete'))))) : null;
 
   show(
-    el('h1', {}, p ? t('editHangout') : t('newHangout')),
+    el('div', { class: 'row spread' }, el('h1', {}, p ? t('editHangout') : t('newHangout')),
+      HID ? logoutButton() : null),
     el('div', { class: 'card' },
+      el('h2', {}, t('settings')),
       el('label', {}, t('language')),
       el('select', { onchange: (e) => { st.lang = e.target.value; editView(p, st); } },
         el('option', { value: '', selected: st.lang === '' }, t('auto')),
         Object.entries(LANGS).map(([k, n]) => el('option', { value: k, selected: st.lang === k }, n))),
+      el('label', {}, t('hangoutAdminPassword') + ' ', el('span', { title: p && p.hasAdminPassword ? t('keepPassword') : t('noPassword'), role: 'img',
+        'aria-label': p && p.hasAdminPassword ? t('keepPassword') : t('noPassword') }, p && p.hasAdminPassword ? '🔒' : '🔓')),
+      el('input', { type: 'password', autocomplete: 'new-password', maxlength: 200, value: st.adminPassword,
+        placeholder: p && p.hasAdminPassword ? '*****' : '', oninput: (e) => { st.adminPassword = e.target.value; } }),
+      p && p.hasAdminPassword ? el('label', {}, el('input', { type: 'checkbox', style: 'width:auto', checked: st.clearPassword, onchange: (e) => { st.clearPassword = e.target.checked; } }), t('removePassword')) : null,
+    ),
+    el('div', { class: 'card' },
       el('label', {}, t('title')), el('input', { maxlength: 120, value: st.title, oninput: (e) => { st.title = e.target.value; } }),
       el('label', {}, t('description')), el('textarea', { rows: 3, maxlength: 1000, oninput: (e) => { st.description = e.target.value; } }, st.description),
       logoBox,
@@ -226,11 +261,12 @@ function editView(p, prev) { // prev: state kept when the language is switched
       err,
       el('div', { class: 'row' },
         el('button', { onclick: save }, t('save')),
-        el('button', { class: 'secondary', onclick: load }, t('cancel')),
-        p ? el('button', { class: 'danger', onclick: async () => {
+        HID && !p.global ? null : el('button', { class: 'secondary', onclick: () => { if (HID) location.href = BASE + '/admin'; else load(); } }, t('cancel')),
+        p && (!HID || p.global) ? el('button', { class: 'danger', onclick: async () => {
           if (!confirm(t('confirmDelete'))) return;
-          await api('DELETE', '/api/admin/hangouts/' + p.id); load();
-        } }, t('deleteHangout')) : null)),
+          await api('DELETE', '/api/admin/hangouts/' + p.id); if (HID) location.href = BASE + '/admin'; else load();
+        } }, t('deleteHangout')) : null,
+        saved ? el('span', { class: 'muted' }, t('saved')) : null)),
     votes);
 }
 
