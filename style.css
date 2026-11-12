@@ -133,3 +133,6 @@ button.hl { border: 2px solid var(--hl); }
 .move { display: flex; gap: 4px; }
 .move button:disabled { opacity: .35; cursor: default; }
 @media (max-width: 600px) { .move button { flex: 1; } }
+
+th.month, h3.month { text-align: center; font-weight: 600; border-bottom: 1px solid currentColor; }
+h3.month { text-align: left; margin: 1rem 0 .25rem; font-size: 1rem; }

@@ -30,15 +30,23 @@ function dateText(o) { // "01.12.2026"
   return `${day}.${m}.${y}`;
 }
 
+function weekdayText(o) { // "Tue"
+  return o.date ? new Date(o.date + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'short' }) : '';
+}
+
 // plain-text label (aria-label, admin list)
-function optionLabel(o) {
-  return [dateText(o), o.note].filter(Boolean).join(' ');
+function dateWithWeekday(o) { // "Tue, 01.12.2026"
+  return [weekdayText(o), dateText(o)].filter(Boolean).join(', ');
+}
+
+function optionLabel(o, weekday) {
+  return [weekday ? dateWithWeekday(o) : dateText(o), o.note].filter(Boolean).join(' ');
 }
 
 // visible label: date on the first line, description on the next
 function optionNode(o) {
-  const d = dateText(o);
-  return el('span', {}, d, d && o.note ? el('br') : null, o.note);
+  const d = dateWithWeekday(o);
+  return el('span', {}, d && el('span', { style: 'white-space:nowrap' }, d), d && o.note ? el('br') : null, o.note);
 }
 
 const COLORS = ['red', 'orange', 'yellow', 'lime', 'green', 'teal', 'cyan', 'blue', 'purple', 'pink', 'brown', 'gray']; // keep in sync with OPTION_COLORS in index.php

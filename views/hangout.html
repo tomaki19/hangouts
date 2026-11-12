@@ -20,6 +20,18 @@ function startDraft(vote) {
   for (const o of hangout.options) draft.answers[o.id] = vote ? vote.answers[o.id] || 'no' : 'no';
 }
 
+const monthOf = (o) => o.date ? new Date(o.date + 'T00:00:00').toLocaleDateString(undefined, { month: 'long', year: 'numeric' }) : '';
+
+// consecutive options sharing a month: [{month, count}]
+function monthGroups(options) {
+  const groups = [];
+  for (const o of options) {
+    const m = monthOf(o), last = groups[groups.length - 1];
+    if (last && last.month === m) last.count++; else groups.push({ month: m, count: 1 });
+  }
+  return groups;
+}
+
 function render() {
   const app = document.getElementById('app');
   app.replaceChildren();
@@ -33,6 +45,9 @@ function render() {
   const maybes = hangout.options.map((o) => hangout.votes.reduce((n, v) => n + (v.answers[o.id] === 'maybe' ? 1 : 0), 0));
   const bestScore = Math.max(...totals.map((t, i) => t * 2 + maybes[i]));
 
+  const groups = monthGroups(hangout.options);
+  const monthRow = groups.some((g) => g.month) ? el('tr', { class: 'months' }, el('th', {}, ''),
+    groups.map((g) => el('th', { colspan: g.count, class: 'month' }, g.month))) : null;
   const head = el('tr', {}, el('th', {}, ''), hangout.options.map((o) => el('th', { class: hlClass(o) }, optionNode(o))));
   const rows = hangout.votes.map((v) => {
     const isMine = myVote && v.id === myVote.id;
@@ -46,7 +61,7 @@ function render() {
       String(totals[i]), maybes[i] ? el('span', { class: 'muted' }, ` (+${maybes[i]})`) : null)));
 
   app.append(el('div', { class: 'card' },
-    el('div', { class: 'table-wrap' }, el('table', {}, el('thead', {}, head), el('tbody', {}, rows), el('tfoot', {}, foot))),
+    el('div', { class: 'table-wrap' }, el('table', {}, el('thead', {}, monthRow, head), el('tbody', {}, rows), el('tfoot', {}, foot))),
     hangout.closed ? el('p', { class: 'muted' }, 'This hangout is closed.') : null,
     !hangout.closed && !draft ? el('p', {}, el('button', { class: 'icon add', title: 'Add my availability', 'aria-label': 'Add my availability', onclick: () => { startDraft(null); render(); window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }); } }, '+')) : null));
 
@@ -56,13 +71,16 @@ function render() {
     app.append(el('div', { class: 'card' },
       el('h2', {}, draft.voteId ? 'Edit ' + draft.name : 'Your availability'),
       nameInput,
-      hangout.options.map((o) => {
-        const group = el('div', { class: 'seg', role: 'group', 'aria-label': optionLabel(o) });
+      hangout.options.map((o, i) => {
+        const group = el('div', { class: 'seg', role: 'group', 'aria-label': optionLabel(o, true) });
         const draw = () => group.replaceChildren(...CHOICES.map(([val, text]) =>
           el('button', { type: 'button', class: 'choice ' + val, 'aria-pressed': String(draft.answers[o.id] === val),
             onclick: () => { draft.answers[o.id] = val; draw(); } }, text)));
         draw();
-        return el('div', { class: 'opt ' + hlClass(o) }, el('div', { class: 'opt-label' }, optionNode(o)), group);
+        const m = monthOf(o);
+        return el('div', { class: 'opt ' + hlClass(o) },
+          m && (i === 0 || monthOf(hangout.options[i - 1]) !== m) ? el('h3', { class: 'month' }, m) : null,
+          el('div', { class: 'opt-label' }, optionNode(o)), group);
       }),
       el('p', { id: 'err', class: 'error' }),
       el('div', { class: 'row' },
