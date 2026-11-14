@@ -142,3 +142,12 @@ h3.month { text-align: left; margin: 1rem 0 .25rem; font-size: 1rem; }
 .link-row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin:6px 0; }
 .link-row > .link { flex:1 1 12rem; min-width:0; }
 .link-group { border-left:3px solid var(--line); padding-left:10px; margin-top:8px; }
+
+/* ---- spacing around admin list rows ---- */
+.opt-row { padding-block: 6px; }
+.opt-row + .opt-row { border-top: 1px solid var(--line); }
+.cal + button { margin-bottom: 8px; }
+.cal + button + div { margin-bottom: 8px; } /* list of entries, before the Closed checkbox */
+.card > .row.spread + .row.spread { margin-top: 6px; } /* response rows under "Responses" */
+.card .row.spread { min-height: 44px; }
+@media (max-width: 600px) { .opt-row { gap: 6px; padding-block: 10px; } }
