@@ -154,10 +154,12 @@ function cleanOptions($input, array $existing = []): array {
 }
 const LANGS = ['en', 'de', 'fr']; // keep in sync with LANGS in common.js
 function cleanLang($v): string { return is_string($v) && in_array($v, LANGS, true) ? $v : ''; } // '' = follow the visitor's browser
+const LOGO_SIZES = ['s', 'm', 'l'];
+function cleanLogoSize($v): string { return is_string($v) && in_array($v, LOGO_SIZES, true) ? $v : 'm'; }
 function publicHangout(array $p): array {
     return [
         'id' => $p['id'], 'title' => $p['title'], 'description' => $p['description'],
-        'options' => array_values($p['options']), 'closed' => !empty($p['closed']), 'lang' => cleanLang($p['lang'] ?? ''), 'logo' => logoUrl($p['id']),
+        'options' => array_values($p['options']), 'closed' => !empty($p['closed']), 'lang' => cleanLang($p['lang'] ?? ''), 'logo' => logoUrl($p['id']), 'logoSize' => cleanLogoSize($p['logoSize'] ?? ''),
         'votes' => array_map(fn($v) => ['id' => $v['id'], 'name' => $v['name'], 'answers' => (object)$v['answers']], array_values($p['votes'])),
     ];
 }
@@ -323,7 +325,7 @@ function api(array $parts, string $method): void {
             if ($title === '') throw new HttpError(400, 'Title required');
             $p = [
                 'id' => rid(9), 'title' => $title, 'description' => str($body['description'] ?? '', 1000),
-                'options' => cleanOptions($body['options'] ?? null), 'votes' => [], 'closed' => false, 'created' => time(), 'lang' => cleanLang($body['lang'] ?? ''),
+                'options' => cleanOptions($body['options'] ?? null), 'votes' => [], 'closed' => false, 'created' => time(), 'lang' => cleanLang($body['lang'] ?? ''), 'logoSize' => cleanLogoSize($body['logoSize'] ?? ''),
             ];
             setAdminPassword($p, $body);
             withHangouts(function (array &$hangouts) use ($p) { $hangouts[$p['id']] = $p; });
@@ -341,6 +343,7 @@ function api(array $parts, string $method): void {
                 $p['options'] = cleanOptions($body['options'] ?? null, $p['options']);
                 $p['closed'] = !empty($body['closed']);
                 $p['lang'] = cleanLang($body['lang'] ?? '');
+                $p['logoSize'] = cleanLogoSize($body['logoSize'] ?? '');
                 setAdminPassword($p, $body);
                 $ids = array_column($p['options'], 'id');
                 foreach ($p['votes'] as &$v) {

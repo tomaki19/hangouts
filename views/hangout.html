@@ -38,9 +38,10 @@ function render() {
   const app = document.getElementById('app');
   app.replaceChildren();
   document.title = hangout.title + ' · Hangout';
-  if (hangout.logo) app.append(el('img', { class: 'logo', src: hangout.logo, alt: '' }));
-  app.append(el('h1', {}, hangout.title));
-  if (hangout.description) app.append(el('p', { class: 'muted', style: 'white-space:pre-wrap' }, hangout.description));
+  app.append(el('div', { class: 'hang-head' },
+    el('div', { class: 'hang-text' }, el('h1', {}, hangout.title),
+      hangout.description ? el('p', { class: 'muted', style: 'white-space:pre-wrap' }, hangout.description) : null),
+    hangout.logo ? el('img', { class: 'logo logo-' + (hangout.logoSize || 'm'), src: hangout.logo, alt: '' }) : null));
 
   const myVote = mine && hangout.votes.find((v) => v.id === mine.voteId);
   const totals = hangout.options.map((o) => hangout.votes.reduce((n, v) => n + (v.answers[o.id] === 'ok' ? 1 : 0), 0));

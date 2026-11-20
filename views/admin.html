@@ -133,7 +133,7 @@ function colorPicker(o) {
 
 function editView(p, prev) { // prev: state kept when the language is switched
   const st = prev || {
-    title: p ? p.title : '', description: p ? p.description : '', closed: p ? p.closed : false, lang: p ? p.lang : '', adminPassword: '', clearPassword: false,
+    title: p ? p.title : '', description: p ? p.description : '', closed: p ? p.closed : false, lang: p ? p.lang : '', logoSize: p ? p.logoSize || 'm' : 'm', adminPassword: '', clearPassword: false,
     options: p ? p.options.map((o) => ({ ...o })) : [],
     logoData: null, logoRemove: false, // pending logo change, sent after the hangout is saved
   };
@@ -213,8 +213,11 @@ function editView(p, prev) { // prev: state kept when the language is switched
     } });
     logoBox.replaceChildren(
       el('label', {}, t('logo')),
-      cur ? el('img', { class: 'logo', src: cur, alt: t('hangoutLogo') }) : el('p', { class: 'muted' }, t('noLogo')),
+      cur ? el('img', { class: 'logo logo-' + st.logoSize, src: cur, alt: t('hangoutLogo') }) : el('p', { class: 'muted' }, t('noLogo')),
       file,
+      cur ? el('label', {}, t('logoSize')) : null,
+      cur ? el('select', { onchange: (e) => { st.logoSize = e.target.value; drawLogo(); } },
+        [['s', 'sizeSmall'], ['m', 'sizeMedium'], ['l', 'sizeLarge']].map(([k, n]) => el('option', { value: k, selected: st.logoSize === k }, t(n)))) : null,
       el('div', { class: 'row' },
         el('button', { type: 'button', class: 'small secondary', onclick: () => file.click() }, cur ? t('changeLogo') : t('uploadLogo')),
         cur ? el('button', { type: 'button', class: 'small danger', onclick: () => { st.logoData = null; st.logoRemove = true; drawLogo(); } }, t('remove')) : null));
@@ -223,7 +226,7 @@ function editView(p, prev) { // prev: state kept when the language is switched
 
   const save = async () => {
     try {
-      const body = { title: st.title, description: st.description, closed: st.closed, lang: st.lang, adminPassword: st.adminPassword, clearAdminPassword: st.clearPassword, options: st.options.filter((o) => o.date || o.note.trim()) };
+      const body = { title: st.title, description: st.description, closed: st.closed, lang: st.lang, logoSize: st.logoSize, adminPassword: st.adminPassword, clearAdminPassword: st.clearPassword, options: st.options.filter((o) => o.date || o.note.trim()) };
       const saved = p ? await api('PUT', '/api/admin/hangouts/' + p.id, body) : await api('POST', '/api/admin/hangouts', body);
       if (st.logoData) await api('PUT', `/api/admin/hangouts/${saved.id}/logo`, { image: st.logoData });
       else if (st.logoRemove && p && p.logo) await api('DELETE', `/api/admin/hangouts/${saved.id}/logo`);
