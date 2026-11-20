@@ -21,7 +21,7 @@ function startDraft(vote) {
   for (const o of hangout.options) draft.answers[o.id] = vote ? vote.answers[o.id] || 'no' : 'no';
 }
 
-const monthOf = (o) => o.date ? new Date(o.date + 'T00:00:00').toLocaleDateString(undefined, { month: 'long', year: 'numeric' }) : '';
+const monthOf = (o) => o.date ? new Date(o.date + 'T00:00:00').toLocaleDateString(LANG, { month: 'long', year: 'numeric' }) : '';
 
 // consecutive options sharing a month: [{month, count}]
 function monthGroups(options) {
