@@ -159,7 +159,7 @@ function cleanLogoSize($v): string { return is_string($v) && in_array($v, LOGO_S
 function publicHangout(array $p): array {
     return [
         'id' => $p['id'], 'title' => $p['title'], 'description' => $p['description'],
-        'options' => array_values($p['options']), 'closed' => !empty($p['closed']), 'lang' => cleanLang($p['lang'] ?? ''), 'logo' => logoUrl($p['id']), 'logoSize' => cleanLogoSize($p['logoSize'] ?? ''),
+        'options' => array_values($p['options']), 'closed' => !empty($p['closed']), 'lang' => cleanLang($p['lang'] ?? ''), 'logo' => logoUrl($p['id']), 'logoSize' => cleanLogoSize($p['logoSize'] ?? ''), 'hidePast' => !empty($p['hidePast']),
         'votes' => array_map(fn($v) => ['id' => $v['id'], 'name' => $v['name'], 'answers' => (object)$v['answers']], array_values($p['votes'])),
     ];
 }
@@ -325,7 +325,7 @@ function api(array $parts, string $method): void {
             if ($title === '') throw new HttpError(400, 'Title required');
             $p = [
                 'id' => rid(9), 'title' => $title, 'description' => str($body['description'] ?? '', 1000),
-                'options' => cleanOptions($body['options'] ?? null), 'votes' => [], 'closed' => false, 'created' => time(), 'lang' => cleanLang($body['lang'] ?? ''), 'logoSize' => cleanLogoSize($body['logoSize'] ?? ''),
+                'options' => cleanOptions($body['options'] ?? null), 'votes' => [], 'closed' => false, 'created' => time(), 'lang' => cleanLang($body['lang'] ?? ''), 'logoSize' => cleanLogoSize($body['logoSize'] ?? ''), 'hidePast' => !empty($body['hidePast']),
             ];
             setAdminPassword($p, $body);
             withHangouts(function (array &$hangouts) use ($p) { $hangouts[$p['id']] = $p; });
@@ -342,6 +342,7 @@ function api(array $parts, string $method): void {
                 $p['description'] = str($body['description'] ?? '', 1000);
                 $p['options'] = cleanOptions($body['options'] ?? null, $p['options']);
                 $p['closed'] = !empty($body['closed']);
+                $p['hidePast'] = !empty($body['hidePast']);
                 $p['lang'] = cleanLang($body['lang'] ?? '');
                 $p['logoSize'] = cleanLogoSize($body['logoSize'] ?? '');
                 setAdminPassword($p, $body);

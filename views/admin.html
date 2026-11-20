@@ -133,7 +133,7 @@ function colorPicker(o) {
 
 function editView(p, prev) { // prev: state kept when the language is switched
   const st = prev || {
-    title: p ? p.title : '', description: p ? p.description : '', closed: p ? p.closed : false, lang: p ? p.lang : '', logoSize: p ? p.logoSize || 'm' : 'm', adminPassword: '', clearPassword: false,
+    title: p ? p.title : '', description: p ? p.description : '', closed: p ? p.closed : false, hidePast: p ? !!p.hidePast : false, lang: p ? p.lang : '', logoSize: p ? p.logoSize || 'm' : 'm', adminPassword: '', clearPassword: false,
     options: p ? p.options.map((o) => ({ ...o })) : [],
     logoData: null, logoRemove: false, // pending logo change, sent after the hangout is saved
   };
@@ -226,7 +226,7 @@ function editView(p, prev) { // prev: state kept when the language is switched
 
   const save = async () => {
     try {
-      const body = { title: st.title, description: st.description, closed: st.closed, lang: st.lang, logoSize: st.logoSize, adminPassword: st.adminPassword, clearAdminPassword: st.clearPassword, options: st.options.filter((o) => o.date || o.note.trim()) };
+      const body = { title: st.title, description: st.description, closed: st.closed, hidePast: st.hidePast, lang: st.lang, logoSize: st.logoSize, adminPassword: st.adminPassword, clearAdminPassword: st.clearPassword, options: st.options.filter((o) => o.date || o.note.trim()) };
       const saved = p ? await api('PUT', '/api/admin/hangouts/' + p.id, body) : await api('POST', '/api/admin/hangouts', body);
       if (st.logoData) await api('PUT', `/api/admin/hangouts/${saved.id}/logo`, { image: st.logoData });
       else if (st.logoRemove && p && p.logo) await api('DELETE', `/api/admin/hangouts/${saved.id}/logo`);
@@ -264,6 +264,7 @@ function editView(p, prev) { // prev: state kept when the language is switched
       el('label', {}, t('dates')), calBox,
       el('button', { type: 'button', class: 'secondary small', onclick: () => { st.options.push({ date: '', note: '' }); drawOpts(); } }, t('addTextOption')),
       optBox,
+      el('label', {}, el('input', { type: 'checkbox', style: 'width:auto', checked: st.hidePast, onchange: (e) => { st.hidePast = e.target.checked; } }), t('hidePastCheck')),
       p ? el('label', {}, el('input', { type: 'checkbox', style: 'width:auto', checked: st.closed, onchange: (e) => { st.closed = e.target.checked; } }), t('closedCheck')) : null,
       err,
       el('div', { class: 'row' },

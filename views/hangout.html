@@ -43,24 +43,27 @@ function render() {
       hangout.description ? el('p', { class: 'muted', style: 'white-space:pre-wrap' }, hangout.description) : null),
     hangout.logo ? el('img', { class: 'logo logo-' + (hangout.logoSize || 'm'), src: hangout.logo, alt: '' }) : null));
 
+  const today = new Date(), todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  const opts = hangout.hidePast ? hangout.options.filter((o) => !o.date || o.date >= todayStr) : hangout.options; // text-only options have no date and stay
+
   const myVote = mine && hangout.votes.find((v) => v.id === mine.voteId);
-  const totals = hangout.options.map((o) => hangout.votes.reduce((n, v) => n + (v.answers[o.id] === 'ok' ? 1 : 0), 0));
-  const maybes = hangout.options.map((o) => hangout.votes.reduce((n, v) => n + (v.answers[o.id] === 'maybe' ? 1 : 0), 0));
+  const totals = opts.map((o) => hangout.votes.reduce((n, v) => n + (v.answers[o.id] === 'ok' ? 1 : 0), 0));
+  const maybes = opts.map((o) => hangout.votes.reduce((n, v) => n + (v.answers[o.id] === 'maybe' ? 1 : 0), 0));
   const bestScore = Math.max(...totals.map((t, i) => t * 2 + maybes[i]));
 
-  const groups = monthGroups(hangout.options);
+  const groups = monthGroups(opts);
   const monthRow = groups.some((g) => g.month) ? el('tr', { class: 'months' }, el('th', {}, ''),
     groups.map((g) => el('th', { colspan: g.count, class: 'month' }, g.month))) : null;
-  const head = el('tr', {}, el('th', {}, ''), hangout.options.map((o) => el('th', { class: hlClass(o) }, optionNode(o))));
+  const head = el('tr', {}, el('th', {}, ''), opts.map((o) => el('th', { class: hlClass(o) }, optionNode(o))));
   const rows = hangout.votes.map((v) => {
     const isMine = myVote && v.id === myVote.id;
     return el('tr', { class: isMine ? 'mine' : '' },
       el('td', {}, hangout.closed ? v.name : el('button', { class: 'name', title: t('editResponse'), onclick: () => { startDraft(v); render(); window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }); } }, v.name, ' ✎')),
-      hangout.options.map((o) => { const a = v.answers[o.id] || 'no'; return el('td', { class: a + ' ' + hlClass(o) }, SYMBOL[a]); }));
+      opts.map((o) => { const a = v.answers[o.id] || 'no'; return el('td', { class: a + ' ' + hlClass(o) }, SYMBOL[a]); }));
   });
 
   const foot = el('tr', {}, el('td', {}, t('total')),
-    hangout.options.map((o, i) => el('td', { class: (hangout.votes.length && totals[i] * 2 + maybes[i] === bestScore ? 'best ' : '') + hlClass(o) },
+    opts.map((o, i) => el('td', { class: (hangout.votes.length && totals[i] * 2 + maybes[i] === bestScore ? 'best ' : '') + hlClass(o) },
       String(totals[i]), maybes[i] ? el('span', { class: 'muted' }, ` (+${maybes[i]})`) : null)));
 
   app.append(el('div', { class: 'card' },
@@ -74,7 +77,7 @@ function render() {
     app.append(el('div', { class: 'card' },
       el('h2', {}, draft.voteId ? t('editName', draft.name) : t('yourAvailability')),
       nameInput,
-      hangout.options.map((o, i) => {
+      opts.map((o, i) => {
         const group = el('div', { class: 'seg', role: 'group', 'aria-label': optionLabel(o, true) });
         const draw = () => group.replaceChildren(...CHOICES.map(([val, text]) =>
           el('button', { type: 'button', class: 'choice ' + val, 'aria-pressed': String(draft.answers[o.id] === val),
@@ -82,7 +85,7 @@ function render() {
         draw();
         const m = monthOf(o);
         return el('div', { class: 'opt ' + hlClass(o) },
-          m && (i === 0 || monthOf(hangout.options[i - 1]) !== m) ? el('h3', { class: 'month' }, m) : null,
+          m && (i === 0 || monthOf(opts[i - 1]) !== m) ? el('h3', { class: 'month' }, m) : null,
           el('div', { class: 'opt-label' }, optionNode(o)), group);
       }),
       el('p', { id: 'err', class: 'error' }),
